@@ -1,0 +1,14 @@
+{
+  "roc_auc": 0.939,
+  "precision": 0.793,
+  "recall": 0.986,
+  "f1": 0.88,
+  "attack_windows_test": 55,
+  "attacks_with_warning": 55,
+  "detection_rate": 1.0,
+  "avg_lead_time_windows": 7.47,
+  "forecast_horizon": 6,
+  "data_source": "CICIDS2017 Friday Afternoon DDoS capture (real)",
+  "n_flows_used": 225711,
+  "window_size_flows": 500
+}
