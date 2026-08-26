@@ -21,7 +21,9 @@ def summary():
 def predictions(limit:int=20):
     if os.path.exists("predictions_real.csv"):
         df=pd.read_csv("predictions_real.csv")
-        return df.tail(limit).to_dict(orient="records")
+        df = df.fillna({"src_ip_flag": ""})
+        records = df.tail(limit).to_dict(orient="records")
+        return records
     return {"error":"No predictions available"}
 
 @app.get("/features")
