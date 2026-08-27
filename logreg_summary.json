@@ -1,0 +1,26 @@
+{
+  "cross_day_holdout": {
+    "roc_auc": 0.539,
+    "precision": 0.848,
+    "recall": 0.404,
+    "f1": 0.548
+  },
+  "within_day_split": {
+    "roc_auc": 0.763,
+    "precision": 0.893,
+    "recall": 0.501,
+    "f1": 0.642
+  },
+  "top_coefficients": {
+    "byte_rate_ma12": -3.5787,
+    "byte_rate_std12": 3.3748,
+    "dst_port_entropy_std12": 2.5519,
+    "unique_dst_ips_std12": -1.4938,
+    "unique_dst_ports_std12": -1.4938,
+    "byte_rate_ma6": -1.0739,
+    "fwd_psh_rate_ma12": 1.0605,
+    "avg_flow_duration_ma12": 0.9756,
+    "fwd_psh_rate_ma6": 0.9076,
+    "dst_port_entropy": -0.8214
+  }
+}
