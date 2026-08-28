@@ -1,0 +1,6 @@
+# Raw CICIDS2017 captures are too large for GitHub (>100MB limits on Monday/Tuesday/Wednesday).
+# Keep them local; download the official UNB CICIDS2017 release to reproduce.
+dataset/*.pcap_ISCX.csv
+
+__pycache__/
+.DS_Store

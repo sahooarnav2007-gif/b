@@ -23,10 +23,11 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, roc_auc_score
 import json
+import os
 import warnings
 warnings.filterwarnings("ignore")
 
-RAW_DIR = "/home/claude/cicids_raw"
+RAW_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dataset")
 WINDOW_SIZE = 500
 FORECAST_HORIZON = 6
 ROLL_WINDOWS = [3, 6, 12]
