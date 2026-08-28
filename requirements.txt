@@ -2,3 +2,7 @@ numpy
 pandas
 scikit-learn
 flask
+streamlit
+scapy
+fastapi
+uvicorn
