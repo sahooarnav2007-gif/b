@@ -42,6 +42,8 @@ python3 mitre_stages_and_explainability.py   # kill-chain remap + saliency demo
 # inference + demo
 python3 infer.py dataset/Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv
                        # streaming forecast from a raw flow CSV (RF or LSTM)
+python3 packet_features.py capture.pcap -o windows.csv --infer
+                       # packet-level path: PCAP -> windows -> forecast
 streamlit run app.py   # offline upload-and-forecast UI (CSV or pre-featurized)
 ```
 
@@ -97,14 +99,15 @@ flooding attack.
 
 ## Known gaps — be upfront about these before judges find them
 
-1. **Packet-level features not implemented.** The PS explicitly wants TTL
-   variance, TCP window size, IP fragment flags, retransmission counts —
-   these require raw PCAP parsing (Scapy/PyShark), and the CICIDS CSV
-   export we have is flow-level only. Scapy is installed and the plan is
-   `packet_features.py` (Phase 3 below).
+1. **Packet-level features: DONE (basic)** — `packet_features.py` derives TTL
+   variance, TCP window sizes, IP fragment flags, retransmission rate, SYN-only
+   flood rate from a raw PCAP (verified on a synthetic capture and wired into
+   the same forecasters). Not yet exercised on a real CICIDS2017 PCAP (limited
+   bandwidth/large files) — the heuristic stage labels are simple rules, of
+   interest mainly for label-less demo inputs.
 2. **Upload-and-forecast demo app: DONE** — see `app.py` (Streamlit, offline,
-   accepts raw CICIDS flow CSVs or pre-featurized window CSVs, runs the
-   saved RF/LSTM via `infer.py`). PCAP upload arrives with Phase 3.
+   accepts raw CICIDS flow CSVs, pre-featurized window CSVs, and the CSV output
+   of `packet_features.py`, runs the saved RF/LSTM via `infer.py`).
 3. **Transformer/GNN not attempted** — PS lists LSTM/Transformer/GNN as
    options, LSTM satisfies the requirement, this isn't a gap, just noting
    we picked one valid option rather than doing all three.
@@ -126,6 +129,9 @@ flooding attack.
 - `infer.py` — streaming inference core (chunked CSV reader → 500-flow windows →
   rolling features → saved RF/LSTM → risk timeline with MITRE stage + attribution;
   batched predict avoids this env's ~250ms/call sklearn overhead)
+- `packet_features.py` — packet-level (PCAP) features: Scapy PcapReader streaming →
+  500-packet windows → the 10 model raw fields + TTL/window/frag/retrans/SYN-flood
+  extras, heuristic stage mapping, output CSV consumable by `infer.py`/`app.py`
 - `app.py` — Streamlit upload-and-forecast demo (offline); `.streamlit/config.toml`
   (headless, port 8501, 1 GB uploads)
 - `live_predictor.html` — interactive browser tool (single-window classifier,
@@ -153,16 +159,22 @@ flooding attack.
       13 flags, 21.7%) — no exceptions
 - [x] `requirements.txt` updated (streamlit, scapy); headless 8501 / 1 GB uploads
 
-**Phase 3 — Packet-level features (NEXT)** — `packet_features.py`
-- [ ] Scapy `PcapReader` streaming → packet windows (500 pkts), derive the same
-      10 raw window fields used by the models
-- [ ] Packet-extras: TTL variance/std, TCP window size stats, IP fragment ratio,
-      SYN-only / ACK-less flood rate, ICMP ratio, protocol mix
-- [ ] Emit a pre-featurized window CSV (`window_id` + `y_forecast`) so the demo
-      app accepts PCAP output directly
-- [ ] Stage heuristics for pcap-only inputs (SYN-scan → Reconnaissance, ICMP
-      flood → Impact/dos, …)
-- [ ] Verify on a Scapy-generated synthetic attack PCAP
+**Phase 3 — Packet-level features ✅ DONE** (`packet_features.py`)
+- [x] Scapy `PcapReader` streaming → 500-packet windows, deriving the SAME 10
+      raw window fields the models expect (so the saved forecasters run unchanged)
+- [x] Packet-extras (PS list): TTL mean/std, TCP window size stats, IP fragment
+      (frag/DF) ratios, SYN-only flood rate, retransmission rate, protocol mix,
+      distinct src count
+- [x] Lightweight 5-tuple flow table (durations, seq/retrans estimate)
+- [x] Emits a pre-featurized window CSV (`window_id` + `y_forecast`) that
+      `infer.py` and the demo app accept directly
+- [x] Heuristic family/stage for label-less pcaps (SYN-scan → Reconnaissance,
+      SYN/ICMP flood → Impact-dos)
+- [x] Verified on a Scapy-generated synthetic capture (2020 pkts:
+      benign → 600 SYN-scan → 900 SYN-flood): heuristics label the phases
+      none → port_scan/Recon → dos/Impact, and the RF forecaster flags the
+      flood windows (peak risk 0.61) from packet-derived features alone
+      (`python3 packet_features.py demo.pcap -o w.csv --infer`)
 
 **Phase 4 — Docs + deck**
 - [ ] `docs/architecture.md` — 2-page: pipeline, world-model math P(S_t+1|S_t),
