@@ -1,0 +1,52 @@
+{
+  "roc_auc": 0.765,
+  "precision": 0.947,
+  "recall": 0.226,
+  "f1": 0.365,
+  "attack_windows_test": 721,
+  "attacks_with_warning": 274,
+  "detection_rate": 0.38,
+  "avg_lead_time_windows": 6.07,
+  "forecast_horizon": 6,
+  "train_days": [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday_web",
+    "thursday_infil"
+  ],
+  "test_days": [
+    "friday_morning",
+    "friday_portscan",
+    "friday_ddos"
+  ],
+  "per_day": {
+    "friday_morning": {
+      "attack_windows": 92,
+      "caught_with_warning": 7,
+      "avg_lead_time": 5.71
+    },
+    "friday_portscan": {
+      "attack_windows": 351,
+      "caught_with_warning": 0,
+      "avg_lead_time": 0.0
+    },
+    "friday_ddos": {
+      "attack_windows": 278,
+      "caught_with_warning": 267,
+      "avg_lead_time": 6.08
+    }
+  },
+  "family_classifier_accuracy": 0.294,
+  "data_source": "CICIDS2017 \u2014 all 8 real capture files (Mon-Fri)",
+  "within_day_eval": {
+    "roc_auc": 0.832,
+    "precision": 0.952,
+    "recall": 0.481,
+    "f1": 0.64,
+    "attack_windows_test": 794,
+    "attacks_with_warning": 406,
+    "detection_rate": 0.511,
+    "avg_lead_time_windows": 7.54
+  }
+}

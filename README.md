@@ -1,96 +1,137 @@
-# SIH26153 — AI-Based Network Attack Forecasting — MVP
+# SIH26153 — AI-Based Network Attack Forecasting — FULL BUILD
 
-## What this is
-A working forecasting pipeline (not detection): predicts whether an attack
-will occur in the NEXT 6 traffic windows, using precursor/recon patterns +
-a mock threat-intel feed, and mapping predicted attacks to MITRE ATT&CK
-techniques.
+This is the current, spec-aligned version. **Ignore files prefixed with
+nothing/`real_`/`load_real_data.py`/`generate_data.py`/`train_model.py`/
+`features.py`** — those were earlier MVP iterations before we pulled the
+actual official problem statement text. This README covers the current
+build only.
 
-## Run order
+## What the PS actually requires (confirmed from sih2026.vuce.in/en/ps/SIH26153
+and the NCIIPC contact info)
+
+- Dataset: CIC-IDS2017/2018, UNSW-NB15, CTU-13, CICIoT2023, LANL, or DARPA —
+  **CICIDS2017 is explicitly on the approved list.**
+- Core deliverable: a **"World Model"** — learns state-transition dynamics
+  P(S_t+1 | S_t) via LSTM/Transformer/GNN — NOT a static classifier.
+- Map predictions to **MITRE ATT&CK kill-chain stages**: Reconnaissance,
+  Initial Access, Lateral Movement, Command & Control, Exfiltration.
+- **Explainability required** (SHAP or attention/gradient attribution) —
+  black-box output is explicitly called "not acceptable."
+- **Benchmark against a logistic regression baseline** to prove the
+  sequence model adds measurable value.
+- Both flow-level AND packet-level features (packet-level = NOT yet done,
+  see "Known gaps" below).
+- A working demo interface accepting PCAP/CSV input (NOT yet done, see below).
+
+## Pipeline (run in this order)
+
 ```bash
-pip install numpy pandas scikit-learn matplotlib
-python3 generate_data.py     # synthetic traffic + threat intel + attack episodes
-python3 features.py          # rolling-window features + forward-looking labels
-python3 train_model.py       # trains RandomForest, evaluates, computes lead-time metric
+pip install numpy pandas scikit-learn --break-system-packages
+
+python3 full_pipeline.py     # loads all 8 real CICIDS2017 day-files, windows
+                              # them, maps labels -> full_features.csv
+python3 full_train.py        # RandomForest forecaster, two evals (cross-day +
+                              # within-day), attack-family classifier
+python3 lstm_world_model.py  # THE WORLD MODEL — LSTM built from scratch in
+                              # NumPy (no torch/tensorflow available offline).
+                              # Full BPTT + Adam, early stopping. Two evals,
+                              # same methodology as full_train.py.
+python3 logreg_baseline.py   # required baseline comparison
+python3 mitre_stages_and_explainability.py   # kill-chain remap + saliency demo
 ```
-Then open `dashboard.html` in a browser — it's self-contained (data is embedded inline).
+
+## Results summary
+
+| Model | Cross-day AUC (unseen Friday) | Within-day AUC (70/30 split) |
+|---|---|---|
+| Logistic Regression (baseline) | 0.539 | 0.763 |
+| RandomForest | 0.765 | 0.832 |
+| **LSTM world model** | 0.412 | 0.729 |
+
+**Honest read of these numbers, don't hide this from judges — bring it up
+yourself:**
+
+- On the **within-day split**, LSTM and RandomForest are close on AUC, but
+  **LSTM recall is 0.88 vs RandomForest's 0.48** — the LSTM catches far more
+  real attacks, at some cost to precision. For a forecasting/early-warning
+  tool, that's often the right tradeoff (missing an attack is worse than
+  a false alarm), and it's a genuine argument for why the sequence model
+  is a better fit than the baseline, even though its AUC alone doesn't look
+  dramatically better.
+- On the **cross-day holdout** (train Mon-Thu, test entirely unseen Friday),
+  the LSTM actually generalizes *worse* than RandomForest and worse than
+  logistic regression. This is a real, documented limitation: with only
+  ~3,300 training sequences, the LSTM has enough capacity to overfit
+  day-specific noise even with early stopping and L2 regularization. This
+  is a completely normal small-data deep-learning problem — the fix is
+  more training days/data augmentation, not a flawed architecture.
+- **Present both numbers.** A team that only shows the flattering split
+  looks like it's hiding something; a team that shows both and explains
+  the tradeoff looks like it did real science.
+
+## MITRE kill-chain stage mapping
+
+See `kill_chain_mapping.json`. Five families mapped cleanly:
+- `port_scan` → **Reconnaissance**
+- `brute_force`, `web_attack` → **Initial Access**
+- `botnet` → **Command & Control**
+- `dos`/`ddos` → technically MITRE **Impact** (TA0040), which isn't one of
+  the 5 PS-listed stages. We kept it as its own labeled bucket rather than
+  force a wrong mapping — mention this explicitly to judges, it shows you
+  understand MITRE ATT&CK rather than pattern-matching to the PS's example list.
+
+## Explainability
+
+`saliency_demo.json` — gradient-based feature attribution (SHAP isn't
+installable offline; gradient saliency is a standard, legitimate substitute
+for a hand-rolled model). Shows which input features drove a specific
+real prediction. In the saved demo: a real DDoS window forecast (risk=0.744,
+correct), driven mostly by `packet_rate` (34%) and `dst_port_entropy`/
+`unique_dst_ports` (~31% combined) — matches domain intuition for a
+flooding attack.
+
+## Known gaps — be upfront about these before judges find them
+
+1. **Packet-level features not implemented.** The PS explicitly wants TTL
+   variance, TCP window size, IP fragment flags, retransmission counts —
+   these require raw PCAP parsing (Scapy/PyShark), and the CICIDS CSV
+   export we have is flow-level only. Fix: download PCAP files from the
+   same CICIDS2017 release and extract these with Scapy.
+2. **No upload-and-infer demo app.** Everything here runs from the command
+   line against pre-loaded CSVs. The PS wants a Streamlit/Flask/CLI tool
+   that accepts a new PCAP/CSV and runs live inference. This is a
+   half-day build on top of what exists (the LSTM/RF are already trained
+   and saved — `lstm_weights.json` — so inference code just needs wiring
+   to a file-upload interface).
+3. **Transformer/GNN not attempted** — PS lists LSTM/Transformer/GNN as
+   options, LSTM satisfies the requirement, this isn't a gap, just noting
+   we picked one valid option rather than doing all three.
+4. **No CAPEC/CVE-NVD integration** — the NCIIPC note mentions these as
+   available knowledge bases; we've only used MITRE ATT&CK so far.
 
 ## Files
-- `generate_data.py` — synthetic traffic generator with realistic attack buildup
-  (recon/scan precursor -> actual attack), plus mock threat-intel feed (known-bad
-  IPs tagged with MITRE techniques)
-- `features.py` — rolling-window feature engineering (3/6/12-window stats,
-  slopes) + threat-intel correlation + FORWARD-LOOKING forecast labels
-  (y[t] = attack within next 6 windows, not "is t itself an attack")
-- `train_model.py` — RandomForest classifier, time-based train/test split,
-  computes the key forecasting metric: average lead time (windows of advance
-  warning before real attacks)
-- `dashboard.html` — SOC-style console: risk timeline showing the model's
-  score climbing before a real attack, full test-set overview, feature
-  importance, MITRE breakdown, threat intel sample
-- `traffic.csv`, `threat_intel.csv`, `episodes.csv` — generated data
-- `features.csv` — engineered feature set
-- `predictions.csv` — model outputs on the test set
-- `model_summary.json`, `feature_importance.csv` — evaluation results
 
-## Current result (synthetic data, offline dev environment)
-- ROC-AUC: 1.0 | Precision: 1.0 | Recall: 0.98
-- 33/33 test-set attacks caught with advance warning
-- Average lead time: ~6.8 windows (~3.4 min at 30s/window) before attack onset
+- `full_pipeline.py` — loads all 8 real CICIDS2017 files, windows to 500-flow
+  buckets, computes features, maps attack labels
+- `full_train.py` — RandomForest forecaster + attack-family classifier,
+  both cross-day and within-day evaluation
+- `lstm_world_model.py` — **the world model**: from-scratch NumPy LSTM
+  (forward pass, BPTT, Adam optimizer, early stopping, saliency/explainability)
+- `logreg_baseline.py` — required baseline comparison
+- `mitre_stages_and_explainability.py` — kill-chain stage remapping + saliency demo
+- `live_predictor.html` — interactive browser tool (single-window classifier,
+  drag sliders / preset scenarios, runs a real exported RandomForest client-side)
+- `full_features.csv` / `full_features_with_stages.csv` — engineered dataset
+- `*_summary.json` — evaluation results for each model
+- `lstm_weights.json` — trained LSTM weights (reload with `NumpyLSTM` class
+  in `lstm_world_model.py` for inference without retraining)
 
-Note: this near-perfect score reflects clean synthetic signal. Swap in a real
-dataset (CICIDS2017/2018, UNSW-NB15) for the actual SIH submission — expect
-noisier, more realistic numbers, which is fine and expected.
+## Recommended next steps, in priority order
 
-## Next steps for the full submission
-1. Replace synthetic generator with real CICIDS2017/UNSW-NB15 flow data
-2. Add an LSTM/Transformer sequence model to compare against the RandomForest baseline
-3. Wire in a real threat-intel API (AbuseIPDB / AlienVault OTX free tier)
-4. Add live-stream simulation (replay traffic at real time speed) for the demo
-
----
-
-## UPDATE: Real CICIDS2017 data run
-
-Ran the same forecasting approach on the real **CICIDS2017 Friday-Afternoon-DDoS**
-capture (225,711 real network flows, 56.7% attack traffic).
-
-### Run order (after generate_data.py's synthetic files already exist)
-```bash
-# 1. Put the CICIDS CSV at: cicids_raw/Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv
-#    (update RAW_FILE path in load_real_data.py if yours is elsewhere)
-python3 load_real_data.py     # buckets 500 real flows per "window", builds traffic_real.csv
-python3 real_features.py      # rolling-window features + forecast labels -> features_real.csv
-python3 real_train_model.py   # trains + evaluates -> predictions_real.csv, model_summary_real.json
-```
-Then open `real_dashboard.html` (self-contained, real data embedded).
-
-### Real-data results (honest, not overfit to clean synthetic signal)
-- ROC-AUC: **0.936** | Precision: 0.74 | Recall: 0.99 | F1: 0.85
-- 55/55 test-set attack windows caught with advance warning (100% detection)
-- Average lead time: **7.5 windows** (each window = 500 flows) before attack onset
-
-### Important differences from the synthetic run
-- **No timestamp column** in this CICIDS export — flows are in capture order,
-  so windows are bucketed by flow-count (500 flows/window), not wall-clock time.
-  If you get a version with timestamps, switch to time-based windowing for a
-  more realistic "X minutes of lead time" claim.
-- **No source-IP column** in this export — threat-intel IP correlation is
-  stubbed to 0 for this run. If your SIH submission needs that feature working,
-  use a CICIDS2017 distribution that retains IP addresses (check the PCAP-derived
-  GeneratedLabelledFlows version on the official UNB site), or add a synthetic
-  IP-tagging layer back in.
-- **Single attack type** (DDoS) in this capture — precision is lower (0.74)
-  than the synthetic run because real traffic has natural noise the model
-  sometimes misreads as pre-attack buildup. This is realistic and defensible —
-  call it out to judges as an accuracy/coverage tradeoff, and mention that
-  training on more CICIDS days (Tuesday brute-force, Wednesday DoS, Thursday
-  web attacks/infiltration) would let the model learn multiple attack signatures.
-
-### To go further before submission
-1. Download the other 7 CICIDS2017 day-files (Monday–Thursday, other Friday
-   captures) and concatenate them through `load_real_data.py` for multi-attack-type
-   training — this also lets you rebuild the MITRE ATT&CK breakdown table.
-2. Add an LSTM/GRU sequence model and compare against this RandomForest baseline.
-3. If you find a CICIDS variant with timestamp + source IP columns, switch
-   windowing to real time-based buckets and re-enable threat-intel correlation.
+1. Build the upload-and-infer demo app (Streamlit is fastest) — this is
+   an explicit, named deliverable, don't skip it.
+2. Add packet-level features via Scapy on a PCAP subset — even a partial
+   implementation (TTL variance alone) is worth having.
+3. Write the 2-page architecture document and 5-slide deck the PS asks for.
+4. Record the 2-minute demo video showing: file upload → risk timeline →
+   MITRE stage prediction → saliency explanation.

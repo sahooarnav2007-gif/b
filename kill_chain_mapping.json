@@ -1,0 +1,43 @@
+{
+  "mapping": {
+    "port_scan": "Reconnaissance",
+    "brute_force": "Initial Access",
+    "web_attack": "Initial Access",
+    "infiltration": "Initial Access",
+    "botnet": "Command & Control",
+    "dos": "Impact (not one of the 5 PS-listed stages \u2014 noted explicitly)",
+    "exploit": "Initial Access",
+    "none": "-"
+  },
+  "notes": {
+    "infiltration": "CICIDS labels this 'Infiltration' generically; it plausibly spans both Initial Access and Lateral Movement depending on the specific technique used. We default to Initial Access.",
+    "dos": "DoS/DDoS is MITRE tactic TA0040 (Impact), which isn't one of the 5 stages the PS lists (Recon/Initial Access/Lateral Movement/C2/Exfiltration). We surface it as its own bucket rather than force it into the wrong stage."
+  },
+  "counts": [
+    {
+      "attack_family": "botnet",
+      "kill_chain_stage": "Command & Control",
+      "windows": 92
+    },
+    {
+      "attack_family": "brute_force",
+      "kill_chain_stage": "Initial Access",
+      "windows": 505
+    },
+    {
+      "attack_family": "dos",
+      "kill_chain_stage": "Impact (not one of the 5 PS-listed stages \u2014 noted explicitly)",
+      "windows": 1209
+    },
+    {
+      "attack_family": "port_scan",
+      "kill_chain_stage": "Reconnaissance",
+      "windows": 351
+    },
+    {
+      "attack_family": "web_attack",
+      "kill_chain_stage": "Initial Access",
+      "windows": 91
+    }
+  ]
+}
