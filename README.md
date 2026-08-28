@@ -38,6 +38,11 @@ python3 lstm_world_model.py  # THE WORLD MODEL — LSTM built from scratch in
                               # same methodology as full_train.py.
 python3 logreg_baseline.py   # required baseline comparison
 python3 mitre_stages_and_explainability.py   # kill-chain remap + saliency demo
+
+# inference + demo
+python3 infer.py dataset/Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv
+                       # streaming forecast from a raw flow CSV (RF or LSTM)
+streamlit run app.py   # offline upload-and-forecast UI (CSV or pre-featurized)
 ```
 
 ## Results summary
@@ -95,19 +100,18 @@ flooding attack.
 1. **Packet-level features not implemented.** The PS explicitly wants TTL
    variance, TCP window size, IP fragment flags, retransmission counts —
    these require raw PCAP parsing (Scapy/PyShark), and the CICIDS CSV
-   export we have is flow-level only. Fix: download PCAP files from the
-   same CICIDS2017 release and extract these with Scapy.
-2. **No upload-and-infer demo app.** Everything here runs from the command
-   line against pre-loaded CSVs. The PS wants a Streamlit/Flask/CLI tool
-   that accepts a new PCAP/CSV and runs live inference. This is a
-   half-day build on top of what exists (the LSTM/RF are already trained
-   and saved — `lstm_weights.json` — so inference code just needs wiring
-   to a file-upload interface).
+   export we have is flow-level only. Scapy is installed and the plan is
+   `packet_features.py` (Phase 3 below).
+2. **Upload-and-forecast demo app: DONE** — see `app.py` (Streamlit, offline,
+   accepts raw CICIDS flow CSVs or pre-featurized window CSVs, runs the
+   saved RF/LSTM via `infer.py`). PCAP upload arrives with Phase 3.
 3. **Transformer/GNN not attempted** — PS lists LSTM/Transformer/GNN as
    options, LSTM satisfies the requirement, this isn't a gap, just noting
    we picked one valid option rather than doing all three.
 4. **No CAPEC/CVE-NVD integration** — the NCIIPC note mentions these as
    available knowledge bases; we've only used MITRE ATT&CK so far.
+5. **No 2-page architecture doc / 5-slide deck / demo video yet** — explicit
+   PS deliverables, Phase 4–5 below.
 
 ## Files
 
@@ -119,6 +123,11 @@ flooding attack.
   (forward pass, BPTT, Adam optimizer, early stopping, saliency/explainability)
 - `logreg_baseline.py` — required baseline comparison
 - `mitre_stages_and_explainability.py` — kill-chain stage remapping + saliency demo
+- `infer.py` — streaming inference core (chunked CSV reader → 500-flow windows →
+  rolling features → saved RF/LSTM → risk timeline with MITRE stage + attribution;
+  batched predict avoids this env's ~250ms/call sklearn overhead)
+- `app.py` — Streamlit upload-and-forecast demo (offline); `.streamlit/config.toml`
+  (headless, port 8501, 1 GB uploads)
 - `live_predictor.html` — interactive browser tool (single-window classifier,
   drag sliders / preset scenarios, runs a real exported RandomForest client-side)
 - `full_features.csv` / `full_features_with_stages.csv` — engineered dataset
@@ -126,12 +135,43 @@ flooding attack.
 - `lstm_weights.json` — trained LSTM weights (reload with `NumpyLSTM` class
   in `lstm_world_model.py` for inference without retraining)
 
-## Recommended next steps, in priority order
+## Implementation plan & checklist (SIH 2026)
 
-1. Build the upload-and-infer demo app (Streamlit is fastest) — this is
-   an explicit, named deliverable, don't skip it.
-2. Add packet-level features via Scapy on a PCAP subset — even a partial
-   implementation (TTL variance alone) is worth having.
-3. Write the 2-page architecture document and 5-slide deck the PS asks for.
-4. Record the 2-minute demo video showing: file upload → risk timeline →
-   MITRE stage prediction → saliency explanation.
+**Phase 1 — Streaming inference core ✅ DONE** (`infer.py`)
+- [x] Chunked CSV streaming → 500-flow windows, rolling 3/6/12 features
+- [x] Saves models: RandomForest forecaster + family classifier, NumPy LSTM
+- [x] MITRE ATT&CK stage mapping per alert + mean-imputation ablation attribution
+- [x] Pre-featurized CSV path (`window_id` + `y_forecast`)
+- [x] Verified: full Friday-DDoS file in ~20s — 358/396 true DDoS windows
+      detected, 1 false positive, first alert at window 38, peak risk 0.96
+
+**Phase 2 — Offline demo app ✅ DONE** (`app.py`, `.streamlit/config.toml`)
+- [x] Upload raw CICIDS flow CSV or pre-featurized window CSV
+- [x] RF / LSTM model picker, alert-threshold slider, max-windows option
+- [x] Risk timeline chart + alert markers, MITRE stage breakdown, alert table
+- [x] AppTest-verified upload flow (Thursday web-attack slice: 60 windows,
+      13 flags, 21.7%) — no exceptions
+- [x] `requirements.txt` updated (streamlit, scapy); headless 8501 / 1 GB uploads
+
+**Phase 3 — Packet-level features (NEXT)** — `packet_features.py`
+- [ ] Scapy `PcapReader` streaming → packet windows (500 pkts), derive the same
+      10 raw window fields used by the models
+- [ ] Packet-extras: TTL variance/std, TCP window size stats, IP fragment ratio,
+      SYN-only / ACK-less flood rate, ICMP ratio, protocol mix
+- [ ] Emit a pre-featurized window CSV (`window_id` + `y_forecast`) so the demo
+      app accepts PCAP output directly
+- [ ] Stage heuristics for pcap-only inputs (SYN-scan → Reconnaissance, ICMP
+      flood → Impact/dos, …)
+- [ ] Verify on a Scapy-generated synthetic attack PCAP
+
+**Phase 4 — Docs + deck**
+- [ ] `docs/architecture.md` — 2-page: pipeline, world-model math P(S_t+1|S_t),
+      feature engineering, eval methodology, MITRE mapping, honest limitations
+- [ ] `docs/sih26153_deck.md` — 5 slides: problem / approach / world model /
+      results / demo & deliverables
+
+**Phase 5 — Video + shipping**
+- [ ] 2-minute demo video: file upload → risk timeline → MITRE stage → attribution
+- [ ] README polish, `git add`/commit, push to GitHub
+- [ ] Stretch: CAPEC/CVE-NVD integration note; LSTM retrain on more data to
+      close the cross-day gap
