@@ -23,6 +23,7 @@ scikit-learn overhead.
       (8 day files)   │ windows of 500 flows, per-window raw feats
                       ▼ rolling 3/6/12 (66 more cols) + forecast labels (horizon 6)
                  full_train.py ──► rf_forecaster.pkl, rf_family_classifier.pkl
+                 lstm_world_model.py ──► lstm_weights.json   (the World Model)
                  logreg_baseline.py ──► logreg_summary.json  (required benchmark)
 
                   RUN TIME (offline, any machine)
