@@ -52,8 +52,11 @@ streamlit run app.py   # offline upload-and-forecast UI (CSV or pre-featurized)
 | Model | Cross-day AUC (unseen Friday) | Within-day AUC (70/30 split) |
 |---|---|---|
 | Logistic Regression (baseline) | 0.539 | 0.763 |
-| RandomForest | 0.765 | 0.832 |
-| **LSTM world model** | 0.412 | 0.729 |
+| RandomForest | 0.763 | 0.838 |
+| **LSTM world model** | 0.471 | 0.700 |
+
+*Authoritative numbers live in `*_summary.json`; the architecture doc
+(`docs/architecture.md`) explains methodology and the honest interpretation.*
 
 **Honest read of these numbers, don't hide this from judges — bring it up
 yourself:**
@@ -113,8 +116,8 @@ flooding attack.
    we picked one valid option rather than doing all three.
 4. **No CAPEC/CVE-NVD integration** — the NCIIPC note mentions these as
    available knowledge bases; we've only used MITRE ATT&CK so far.
-5. **No 2-page architecture doc / 5-slide deck / demo video yet** — explicit
-   PS deliverables, Phase 4–5 below.
+5. **No 5-slide deck / 2-min demo video yet** — explicit PS deliverables,
+   Phase 4–5 below (`docs/architecture.md` is done).
 
 ## Files
 
@@ -126,6 +129,8 @@ flooding attack.
   (forward pass, BPTT, Adam optimizer, early stopping, saliency/explainability)
 - `logreg_baseline.py` — required baseline comparison
 - `mitre_stages_and_explainability.py` — kill-chain stage remapping + saliency demo
+- `docs/architecture.md` — 2-page system architecture (data flow, features,
+  models, honest eval, inference paths, limitations)
 - `infer.py` — streaming inference core (chunked CSV reader → 500-flow windows →
   rolling features → saved RF/LSTM → risk timeline with MITRE stage + attribution;
   batched predict avoids this env's ~250ms/call sklearn overhead)
@@ -177,7 +182,7 @@ flooding attack.
       (`python3 packet_features.py demo.pcap -o w.csv --infer`)
 
 **Phase 4 — Docs + deck**
-- [ ] `docs/architecture.md` — 2-page: pipeline, world-model math P(S_t+1|S_t),
+- [x] `docs/architecture.md` — 2-page: pipeline, world-model math P(S_t+1|S_t),
       feature engineering, eval methodology, MITRE mapping, honest limitations
 - [ ] `docs/sih26153_deck.md` — 5 slides: problem / approach / world model /
       results / demo & deliverables
