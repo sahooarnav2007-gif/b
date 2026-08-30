@@ -1,0 +1,17 @@
+{
+  "experiment": "no-aug, last-checkpoint (40 epochs, batch 32)",
+  "n_aug_copies": 2,
+  "jitter_std": 0.1,
+  "warp_prob": 0.6,
+  "flip_prob": 0.05,
+  "batch": 32,
+  "n_train_sequences": 3340,
+  "n_aug_sequences": 3340,
+  "n_test_sequences": 1371,
+  "roc_auc": 0.606,
+  "precision": 0.897,
+  "recall": 0.348,
+  "f1": 0.501,
+  "baseline_cross_day_auc": 0.471,
+  "train_seconds": 366.2
+}

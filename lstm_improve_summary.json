@@ -1,0 +1,30 @@
+{
+  "experiment": "batch-32 Adam, no augmentation, full-length training (last-checkpoint generalization)",
+  "baseline_cross_day": {
+    "roc_auc": 0.471,
+    "precision": 0.833,
+    "recall": 0.255,
+    "f1": 0.391
+  },
+  "improved_cross_day": {
+    "roc_auc": 0.643,
+    "precision": 0.824,
+    "recall": 0.299,
+    "f1": 0.439
+  },
+  "n_train_sequences": 3340,
+  "n_test_sequences": 1371,
+  "train_seconds": 364.7,
+  "improved_within_day": {
+    "roc_auc": 0.544,
+    "precision": 0.539,
+    "recall": 0.509,
+    "f1": 0.523
+  },
+  "baseline_within_day": {
+    "roc_auc": 0.7,
+    "precision": 0.833,
+    "recall": 0.878,
+    "f1": 0.377
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "experiment": "batch32 + gentle aug (jitter 0.02, warp 0.4)",
+  "n_aug_copies": 2,
+  "jitter_std": 0.02,
+  "warp_prob": 0.4,
+  "flip_prob": 0.0,
+  "batch": 32,
+  "n_train_sequences": 3340,
+  "n_aug_sequences": 10020,
+  "n_test_sequences": 1371,
+  "roc_auc": 0.268,
+  "precision": 0.638,
+  "recall": 0.039,
+  "f1": 0.073,
+  "baseline_cross_day_auc": 0.471,
+  "train_seconds": 206.2
+}

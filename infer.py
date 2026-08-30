@@ -91,19 +91,19 @@ def stream_windows(path, window_size=WINDOW_SIZE, max_windows=0):
     ]}
 
     def flush_window(wid):
-        n = len(buffer["Flow Packets/s"])
+        n = min(window_size, len(buffer["Flow Packets/s"]))
         if n == 0:
             return None
-        fpk = np.asarray(buffer["Flow Packets/s"], dtype=float)
-        fby = np.asarray(buffer["Flow Bytes/s"], dtype=float)
-        ports = buffer["Destination Port"]
-        syn = np.asarray(buffer["SYN Flag Count"], dtype=float)
-        ack = np.asarray(buffer["ACK Flag Count"], dtype=float)
-        rst = np.asarray(buffer["RST Flag Count"], dtype=float)
-        psh = np.asarray(buffer["Fwd PSH Flags"], dtype=float)
-        pkt_size = np.asarray(buffer["Average Packet Size"], dtype=float)
-        dur = np.asarray(buffer["Flow Duration"], dtype=float)
-        labels = buffer["Label"]
+        fpk = np.asarray(buffer["Flow Packets/s"][:n], dtype=float)
+        fby = np.asarray(buffer["Flow Bytes/s"][:n], dtype=float)
+        ports = buffer["Destination Port"][:n]
+        syn = np.asarray(buffer["SYN Flag Count"][:n], dtype=float)
+        ack = np.asarray(buffer["ACK Flag Count"][:n], dtype=float)
+        rst = np.asarray(buffer["RST Flag Count"][:n], dtype=float)
+        psh = np.asarray(buffer["Fwd PSH Flags"][:n], dtype=float)
+        pkt_size = np.asarray(buffer["Average Packet Size"][:n], dtype=float)
+        dur = np.asarray(buffer["Flow Duration"][:n], dtype=float)
+        labels = buffer["Label"][:n]
 
         non_benign = [l for l in labels if str(l).strip() != "BENIGN"]
         dominant = Counter(non_benign).most_common(1)

@@ -119,6 +119,12 @@ flooding attack.
    not a live NVD feed.
 5. **No 5-slide deck / 2-min demo video yet** — explicit PS deliverables,
    Phase 4–5 below (`docs/architecture.md` is done).
+6. **Live↔offline feature parity: FIXED** — found that `infer.py`'s streaming
+   `flush_window` computed features over the whole in-memory chunk (~20k rows)
+   instead of the exact 500-row window, so live demo risk was on a different
+   distribution than the trained models. Now 440/441 windows are bit-identical
+   to `full_features.csv`, and live RF/LSTM runs match the published offline
+   numbers (e.g. LSTM Friday-DDoS flag rate ≈ offline per-day recall).
 
 ## Files
 
@@ -137,6 +143,12 @@ flooding attack.
   window attack forecast AUC
 - `eval_forecasting.py` / `eval_forecasting.json` — PR curve, lead-time
   distribution, per-family forecasting on unseen Friday
+- `walk_forward_cv.py` / `walk_forward_cv.json` — rolling-origin time-series CV
+  across the 8 day-files (pooled AUC + per-fold)
+- `lstm_improve.py` / `lstm_improve_summary.json` — closes the LSTM cross-day gap:
+  **cross-day AUC 0.471 → 0.643** (mini-batch Adam; ran a controlled
+  augmentation study and dropped it — it hurt); shipped model in `lstm_weights.json`
+- `run_all.sh` — one-command reproducibility script (`data | models | eval | app`)
 - `knowledge_base.py` — family → CAPEC/CVE enrichment surfaced in the app
 - `infer.py` — streaming inference core (chunked CSV reader → 500-flow windows →
   rolling features → saved RF/LSTM → risk timeline with MITRE stage + attribution;
@@ -201,6 +213,11 @@ flooding attack.
       0.877**, precision/recall/F1 across thresholds, **lead-time distribution
       (median 8, mean 6.5 windows before first alert)**, per-family + false-alarm
       rate (`python3 eval_forecasting.py` → `eval_forecasting.json`)
+- `walk_forward_cv.py` / `walk_forward_cv.json` — rolling-origin time-series CV:
+  6 look-ahead folds, **pooled AUC 0.722** (median fold 0.758), confirms the
+  single Mon→Fri holdout (0.763) is not a lucky split
+- `lstm_improve.py` — **cross-day LSTM: 0.471 → 0.643** via mini-batch Adam
+  (`python3 lstm_improve.py --release` ships the improved `lstm_weights.json`)
 - [x] `knowledge_base.py` — **CAPEC/CVE enrichment** (closes gap 4): every
       family gets its CAPEC attack patterns + illustrative known CVEs, surfaced
       in the demo app's alert panel
