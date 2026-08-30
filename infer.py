@@ -32,6 +32,8 @@ from collections import Counter
 import numpy as np
 import pandas as pd
 
+from zero_day_callout import NoveltyStore
+
 WINDOW_SIZE = 500
 FORECAST_HORIZON = 6
 ROLL_WINDOWS = [3, 6, 12]
@@ -174,19 +176,21 @@ class RollingFeatureBuilder:
         self.history.append(feature_dict)
 
     def row(self):
-        out = {}
+        if not self.history:
+            return None
+        out = {c: self.history[-1][c] for c in self.raw_cols}
         for w in self.roll:
             for col in self.raw_cols:
                 vals = [h[col] for h in self.history[-w:]]
                 out[f"{col}_ma{w}"] = float(np.mean(vals))
                 out[f"{col}_std{w}"] = float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
-            live = self.history[-1][self.raw_cols[3]]          # unique_dst_ports
-            ent = self.history[-1][self.raw_cols[5]]           # dst_port_entropy
+            live = self.history[-1]["unique_dst_ports"]
+            ent = self.history[-1]["dst_port_entropy"]
             out[f"portcount_slope{w}"] = float(
-                live - self.history[-(w + 1)][self.raw_cols[3]]
+                live - self.history[-(w + 1)]["unique_dst_ports"]
             ) if len(self.history) > w else 0.0
             out[f"entropy_slope{w}"] = float(
-                ent - self.history[-(w + 1)][self.raw_cols[5]]
+                ent - self.history[-(w + 1)]["dst_port_entropy"]
             ) if len(self.history) > w else 0.0
         return out
 
@@ -216,6 +220,8 @@ class RandomForestEngine:
         self.threshold = threshold
         imp = np.array(self.model.feature_importances_)
         self.top_features = [self.feature_cols[i] for i in np.argsort(imp)[::-1][:6]]
+        self.novelty = NoveltyStore()
+        self.novelty.build(self.feature_cols)
 
     def predict(self, rolling_row, raw_feat=None):
         return self.predict_batch([rolling_row])[0]
@@ -231,25 +237,39 @@ class RandomForestEngine:
 
         families = np.array(["none"] * n, dtype=object)
         stages = np.array(["-"] * n, dtype=object)
+        fam_conf = np.zeros(n)
         fam_idx = np.where(alert)[0]
         if len(fam_idx) and self.family_model is not None and self.family_classes:
             fam_proba = self.family_model.predict_proba(X.iloc[fam_idx])
             best = fam_proba.argmax(axis=1)
             names = np.array(self.family_classes)[best]
+            fam_conf[fam_idx] = fam_proba.max(axis=1)
             for j, name in zip(fam_idx, names):
                 families[j] = name
                 stages[j] = MITRE_FAMILY_MAP.get(str(name), "unmapped")
+
+        nov_dist, nov_pct, nov_flag = self.novelty.evaluate(X.values)
 
         top5 = self._attribution_batch(X, risk)
 
         out = []
         for i in range(n):
+            zero_day = None
+            if alert[i]:
+                zero_day = {
+                    "family_confidence": round(float(fam_conf[i]), 3),
+                    "low_family_confidence": bool(fam_conf[i] < 0.5),
+                    "novelty_dist": round(float(nov_dist[i]), 3),
+                    "novelty_pctl": round(float(nov_pct[i]), 3),
+                    "zero_day_likely": bool(nov_flag[i]),
+                }
             out.append((
                 float(risk[i]),
                 bool(alert[i]),
                 str(families[i]),
                 str(stages[i]),
                 top5[i],
+                zero_day,
             ))
         return out
 
@@ -291,9 +311,25 @@ class LSTMEngine:
         for p, val in saved["weights"].items():
             setattr(self.model, p, np.array(val))
         self.history = []
+        try:
+            raw_cols = self.features
+            self.novelty = NoveltyStore()
+            self.novelty.build(list(raw_cols))
+        except Exception:
+            self.novelty = NoveltyStore()
+
+    def _novelty(self, x):
+        if not self.novelty.available:
+            return None
+        dist, pct, fl = self.novelty.evaluate(x.reshape(1, -1))
+        return {"family_confidence": None, "low_family_confidence": False,
+                "novelty_dist": round(float(dist[0]), 3),
+                "novelty_pctl": round(float(pct[0]), 3),
+                "zero_day_likely": bool(fl[0])}
 
     def predict(self, rolling_row, raw_feat=None):
         x = np.array([raw_feat[f] for f in self.features])
+        self._raw_last = x
         self.history.append((x - self.mu) / self.sigma)
         if len(self.history) < self.seq_len:
             return None
@@ -309,7 +345,8 @@ class LSTMEngine:
                 key=lambda kv: -kv[1])[:5])
         else:
             attribution = None
-        return risk, alert, family, stage, attribution
+        zero_day = self._novelty(self._raw_last) if alert else None
+        return risk, alert, family, stage, attribution, zero_day
 
     def predict_batch(self, rolling_rows, raw_feats):
         out = []
@@ -342,7 +379,7 @@ def run_inference(path, engine, max_windows=0, window_size=WINDOW_SIZE,
         for (wid, raw_feat, gt_family, _), pred in zip(batch, preds):
             if pred is None:
                 continue
-            risk, alert, family, stage, attr = pred
+            risk, alert, family, stage, attr, zero_day = pred
             rows_seen += 1
             timeline.append({
                 "window_id": wid,
@@ -353,6 +390,7 @@ def run_inference(path, engine, max_windows=0, window_size=WINDOW_SIZE,
                 "attack_family": family,
                 "mitre_stage": stage,
                 "attribution": attr,
+                "zero_day": zero_day,
                 "features": {k: round(float(v), 3) for k, v in raw_feat.items()},
             })
             if progress and (wid % 50 == 0):
@@ -392,7 +430,7 @@ def _run_prefeatured(path, engine, max_windows=0):
             if pred is None:
                 continue
             r = df.iloc[ridx]
-            risk, alert, family, stage, attr = pred
+            risk, alert, family, stage, attr, zero_day = pred
             timeline.append({
                 "window_id": int(r["window_id"]),
                 "flows_in_window": WINDOW_SIZE,
@@ -402,6 +440,7 @@ def _run_prefeatured(path, engine, max_windows=0):
                 "attack_family": family,
                 "mitre_stage": stage,
                 "attribution": attr,
+                "zero_day": zero_day,
                 "features": {k: round(float(r[k]), 3) for k in RAW_FEATURE_COLS},
             })
 

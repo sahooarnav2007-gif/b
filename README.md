@@ -125,6 +125,14 @@ flooding attack.
    distribution than the trained models. Now 440/441 windows are bit-identical
    to `full_features.csv`, and live RF/LSTM runs match the published offline
    numbers (e.g. LSTM Friday-DDoS flag rate ≈ offline per-day recall).
+7. **Zero-day is a novelty callout, not a detector** — the supervised models
+   cannot *learn* a never-before-seen attack; `zero_day_callout.py` flags alert
+   windows that are statistically unlike any known attack (advisory, needs
+   analyst review). Also fixed while wiring it in: the streaming rolling
+   builder never emitted the 10 raw columns (they were silently 0.0 for the
+   model) and `entropy_slope*` was computed from `avg_pkt_size`. Full 76-column
+   live↔offline parity is now ~99.4% at cell level (remaining <1% = file-tail
+   window-boundary effects).
 
 ## Files
 
@@ -149,6 +157,12 @@ flooding attack.
   **cross-day AUC 0.471 → 0.643** (mini-batch Adam; ran a controlled
   augmentation study and dropped it — it hurt); shipped model in `lstm_weights.json`
 - `run_all.sh` — one-command reproducibility script (`data | models | eval | app`)
+- `zero_day_callout.py` — **novel / zero-day activity callout**: for every
+  alert window, nearest-neighbour distance vs the known-attack feature manifold
+  (z-scored, k=5, >95th-percentile ⇒ "possible novel attack"), plus family-
+  classifier confidence. Answers the "can it detect completely new attacks?"
+  question honestly: it can *call out* elevated-risk traffic unlike anything in
+  training, even when it can't name the family.
 - `knowledge_base.py` — family → CAPEC/CVE enrichment surfaced in the app
 - `infer.py` — streaming inference core (chunked CSV reader → 500-flow windows →
   rolling features → saved RF/LSTM → risk timeline with MITRE stage + attribution;

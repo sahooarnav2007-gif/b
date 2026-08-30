@@ -117,11 +117,22 @@ if uploaded is not None:
         st.stop()
 
     tl = pd.DataFrame(timeline)
+    if "zero_day" in tl.columns:
+        tl["zero_day_likely"] = tl["zero_day"].apply(
+            lambda z: bool(z and z.get("zero_day_likely")))
+        tl["novelty_pctl"] = tl["zero_day"].apply(
+            lambda z: z.get("novelty_pctl") if z else None)
     flagged = tl[tl["predicted_alert"]]
 
     if flagged.empty:
         st.success("No alerts at the current threshold.")
     else:
+        n_zd = int(flagged["zero_day_likely"].sum()) if "zero_day_likely" in flagged else 0
+        if n_zd:
+            st.markdown(
+                f"**{n_zd} of {len(flagged)} alert windows "
+                f": possible novel / zero-day activity "
+                f"(outside known-attack feature manifold)**")
         stages = Counter(tl.loc[tl.index.isin(flagged.index), "mitre_stage"])
         first = flagged.iloc[0]
         af = flagged["attack_family"].value_counts()
@@ -131,6 +142,13 @@ if uploaded is not None:
                    f"**{first['risk_score']:.3f}**")
         ic[1].info(f"family **{first['attack_family']}**")
         ic[2].info(f"MITRE stage **{first['mitre_stage']}**")
+        zd = first.get("zero_day")
+        if zd:
+            badge = "POSSIBLE NOVEL / ZERO-DAY" if zd.get("zero_day_likely") else "matches known families"
+            st.markdown(
+                f"**Zero-day callout:** `{badge}` — family confidence "
+                f"`{zd.get('family_confidence')}` · novelty distance "
+                f"`{zd.get('novelty_dist')}` (pct `{zd.get('novelty_pctl')}`)")
         if first.get("attribution"):
             st.markdown("Driving features (mean-imputation ablation / saliency):")
             st.json(first["attribution"])
@@ -167,6 +185,11 @@ if uploaded is not None:
             shown[["window_id", "risk_score", "attack_family", "mitre_stage",
                    "gt_family", "drivers"]].set_index("window_id"),
             width="stretch", height=330)
+        if "zero_day_likely" in shown.columns:
+            st.caption("Zero-day callout marks alert windows whose feature "
+                       "vector sits outside the known-attack manifold (> "
+                       "95th-percentile nearest-neighbour distance). These need "
+                       "analyst review regardless of the predicted family.")
 else:
     st.info(
         "No file uploaded yet. Use the **demo artifacts** in the repo: "

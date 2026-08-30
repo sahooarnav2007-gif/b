@@ -141,5 +141,9 @@ the official UNB CICIDS2017 release to reproduce.
 
 1. Cross-day LSTM generalization (see §5). 2. Packet path not yet validated on a
 real CICIDS2017 PCAP (only synthetic). 3. Family-classifier accuracy 0.241.
-4. No CAPEC/CVE-NVD enrichment yet. 5. sklearn-version drift on pickle reload is
-a warning; predictions remain valid (verified on 1.9.0).
+4. CAPEC/CVE map is static/illustrative (not a live NVD feed). 5. sklearn-version
+drift on pickle reload is a warning; predictions remain valid (verified on 1.9.0).
+6. Zero-day: the supervised models cannot LEARN a never-seen attack; a novelty
+callout (`zero_day_callout.py`) instead flags alert windows that sit outside the
+known-attack feature manifold (>95th-percentile k-NN distance) as "possible novel
+activity — analyst review needed", together with family-confidence.
