@@ -239,11 +239,13 @@ flooding attack.
 **Phase 4 — Docs + deck**
 - [x] `docs/architecture.md` — 2-page: pipeline, world-model math P(S_t+1|S_t),
       feature engineering, eval methodology, MITRE mapping, honest limitations
-- [ ] `docs/sih26153_deck.md` — 5 slides: problem / approach / world model /
-      results / demo & deliverables
+- [x] `docs/sih26153_deck.md` — 5 slides: problem / approach / world model /
+      results / demo & deliverables (zero-day claims rebranded to known-attack
+      progression + novelty callout; all numbers sourced from committed JSONs)
 
 **Phase 5 — Video + shipping**
 - [ ] 2-minute demo video: file upload → risk timeline → MITRE stage → attribution
-- [ ] README polish, `git add`/commit, push to GitHub
+- [x] README polish, `git add`/commit, push to GitHub (deck + all code pushed;
+      only the architecture.md master rewrite is pending push)
 - [ ] Stretch: CAPEC/CVE-NVD integration note; LSTM retrain on more data to
       close the cross-day gap
