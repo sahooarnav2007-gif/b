@@ -3,4 +3,5 @@
 dataset/*.pcap_ISCX.csv
 
 __pycache__/
-.DS_Storelogs/
+.DS_Store
+logs/
