@@ -58,34 +58,59 @@ with st.sidebar:
     st.caption("")
 
 uploaded = st.file_uploader(
-    "Upload a CICIDS2017 flow CSV or a pre-featurized window CSV",
-    type=["csv"],
+    "Upload a CICIDS2017 flow CSV, a pre-featurized window CSV, "
+    "**or a PCAP** (packet-level pipeline runs automatically)",
+    type=["csv", "pcap"],
 )
 
 st.caption(
     f"Raw schema expected: CICIDS2017 columns (Destination Port, Flow Duration, "
     f"Flow Packets/s, …) — {WINDOW_SIZE}-flow windows, horizon 6. Pre-featurized "
-    f"CSVs (with `window_id` + `y_forecast`) are detected automatically."
+    f"CSVs (with `window_id` + `y_forecast`) are detected automatically. PCAPs "
+    f"are turned into 500-packet windows by `packet_features.py` first."
 )
 
 if uploaded is not None:
     engine = get_engine(model_name, threshold)
+    is_pcap = uploaded.name.lower().endswith(".pcap")
+    pcap_extras = None
 
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-        tmp.write(uploaded.getbuffer())
-        tmp_path = tmp.name
+    strip = tempfile.NamedTemporaryFile(
+        suffix=".pcap" if is_pcap else ".csv", delete=False)
+    strip.write(uploaded.getbuffer())
+    strip_path = strip.name
+    strip.close()
+
+    tmp_path = strip_path
     try:
+        if is_pcap:
+            from packet_features import pcap_to_windows_csv
+            with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as t:
+                tmp_path = t.name
+            pcap_to_windows_csv(strip_path, tmp_path)
+            pcap_extras = pd.read_csv(tmp_path)
         with st.spinner("Streaming inference… this runs offline, big files take a moment."):
             timeline, summary = run_inference(
                 tmp_path, engine, max_windows=int(max_windows))
     finally:
-        os.unlink(tmp_path)
+        os.unlink(strip_path)
+        if tmp_path != strip_path:
+            os.unlink(tmp_path)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Windows processed", summary["windows_processed"])
     c2.metric("Flags", summary["flagged_windows"])
     c3.metric("Flag rate", f"{summary['flag_rate']:.1%}")
     c4.metric("Peak risk", f"{summary['peak_risk']:.3f}")
+
+    if is_pcap and pcap_extras is not None and not pcap_extras.empty:
+        st.subheader("Packet-level features (per 500-packet window)")
+        cols = ["window_id", "packet_rate", "byte_rate", "syn_only_rate",
+                "retrans_ratio", "ttl_std", "tcp_win_mean", "frag_ratio",
+                "icmp_ratio", "attack_family", "heuristic_stage"]
+        cols = [c for c in cols if c in pcap_extras.columns]
+        st.dataframe(pcap_extras[cols].set_index("window_id").head(80),
+                     width="stretch", height=260)
 
     if not timeline:
         st.warning("No windows produced. Check the CSV schema.")
@@ -109,6 +134,15 @@ if uploaded is not None:
         if first.get("attribution"):
             st.markdown("Driving features (mean-imputation ablation / saliency):")
             st.json(first["attribution"])
+        from knowledge_base import family_meta, capec_chain
+        meta = family_meta(first["attack_family"])
+        with st.expander("ATT&CK / CAPEC / CVE enrichment"):
+            st.markdown(
+                f"**{meta['description']}**\n\n"
+                f"- **Stage:** `{first['mitre_stage']}`\n"
+                f"- **CAPEC:** {capec_chain(first['attack_family'])}\n"
+                f"- **Known CVEs (illustrative):** "
+                f"{', '.join(meta['cves']) if meta['cves'] else '-'}")
 
         st.subheader("MITRE ATT&CK stage breakdown")
         st.bar_chart(pd.Series(stages, name="windows"))

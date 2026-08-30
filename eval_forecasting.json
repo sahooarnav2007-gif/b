@@ -1,0 +1,81 @@
+{
+  "n_test_windows": 1404,
+  "attack_windows": 955,
+  "auprc_forecast": 0.877,
+  "operating_point_0.5": {
+    "threshold": 0.5,
+    "precision": 0.937,
+    "recall": 0.235,
+    "f1": 0.375,
+    "alerts": 239
+  },
+  "curve": [
+    {
+      "threshold": 0.3,
+      "precision": 0.9,
+      "recall": 0.639,
+      "f1": 0.747,
+      "alerts": 678
+    },
+    {
+      "threshold": 0.4,
+      "precision": 0.925,
+      "recall": 0.311,
+      "f1": 0.466,
+      "alerts": 321
+    },
+    {
+      "threshold": 0.5,
+      "precision": 0.937,
+      "recall": 0.235,
+      "f1": 0.375,
+      "alerts": 239
+    },
+    {
+      "threshold": 0.6,
+      "precision": 0.956,
+      "recall": 0.182,
+      "f1": 0.306,
+      "alerts": 182
+    },
+    {
+      "threshold": 0.7,
+      "precision": 0.966,
+      "recall": 0.151,
+      "f1": 0.261,
+      "alerts": 149
+    }
+  ],
+  "lead_time_windows": {
+    "min": 1,
+    "q25": 5,
+    "median": 8,
+    "q75": 8,
+    "max": 8,
+    "mean": 6.51
+  },
+  "warned_attack_windows": 373,
+  "detection_rate": 0.391,
+  "false_alarms": {
+    "alerts_without_attack_in_horizon": 15,
+    "clean_windows": 449,
+    "false_alarm_rate_windows": 0.033
+  },
+  "per_family": {
+    "botnet": {
+      "windows": 92,
+      "warned_within_horizon": 16,
+      "median_lead_windows": 6
+    },
+    "port_scan": {
+      "windows": 351,
+      "warned_within_horizon": 0,
+      "median_lead_windows": 0
+    },
+    "dos": {
+      "windows": 278,
+      "warned_within_horizon": 269,
+      "median_lead_windows": 8
+    }
+  }
+}

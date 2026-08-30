@@ -114,8 +114,9 @@ flooding attack.
 3. **Transformer/GNN not attempted** — PS lists LSTM/Transformer/GNN as
    options, LSTM satisfies the requirement, this isn't a gap, just noting
    we picked one valid option rather than doing all three.
-4. **No CAPEC/CVE-NVD integration** — the NCIIPC note mentions these as
-   available knowledge bases; we've only used MITRE ATT&CK so far.
+4. **No CAPEC/CVE-NVD integration: DONE (light)** — `knowledge_base.py` maps
+   families to CAPEC patterns + illustrative CVEs, shown in the app. Heuristic,
+   not a live NVD feed.
 5. **No 5-slide deck / 2-min demo video yet** — explicit PS deliverables,
    Phase 4–5 below (`docs/architecture.md` is done).
 
@@ -131,6 +132,12 @@ flooding attack.
 - `mitre_stages_and_explainability.py` — kill-chain stage remapping + saliency demo
 - `docs/architecture.md` — 2-page system architecture (data flow, features,
   models, honest eval, inference paths, limitations)
+- `world_model_dynamics.py` / `world_model_dynamics.json` — empirical vs
+  LSTM-predicted P(S_t+1|S_t) state transitions (SAFE/INCOMING/ATTACK) + next-
+  window attack forecast AUC
+- `eval_forecasting.py` / `eval_forecasting.json` — PR curve, lead-time
+  distribution, per-family forecasting on unseen Friday
+- `knowledge_base.py` — family → CAPEC/CVE enrichment surfaced in the app
 - `infer.py` — streaming inference core (chunked CSV reader → 500-flow windows →
   rolling features → saved RF/LSTM → risk timeline with MITRE stage + attribution;
   batched predict avoids this env's ~250ms/call sklearn overhead)
@@ -175,11 +182,28 @@ flooding attack.
       `infer.py` and the demo app accept directly
 - [x] Heuristic family/stage for label-less pcaps (SYN-scan → Reconnaissance,
       SYN/ICMP flood → Impact-dos)
+- [x] **Direct PCAP upload in `app.py`** — upload a `.pcap` and the packet
+      pipeline runs automatically (windows CSV → forecast + packet-extras table)
 - [x] Verified on a Scapy-generated synthetic capture (2020 pkts:
       benign → 600 SYN-scan → 900 SYN-flood): heuristics label the phases
       none → port_scan/Recon → dos/Impact, and the RF forecaster flags the
       flood windows (peak risk 0.61) from packet-derived features alone
       (`python3 packet_features.py demo.pcap -o w.csv --infer`)
+
+**World-model dynamics & forecasting evidence ✅ DONE**
+- [x] `world_model_dynamics.py` — the "world model" made concrete: empirical
+      next-window state transitions over the full week show the attack
+      lifecycle **SAFE → INCOMING → ATTACK** (2991→21→147 counts) with
+      sustained ATTACK self-loop (2101), and the LSTM forecasts the *next*
+      window's attack state with **AUC 0.814**
+      (`python3 world_model_dynamics.py` → `world_model_dynamics.json`)
+- [x] `eval_forecasting.py` — forecasting metrics on unseen Friday: **AUPRC
+      0.877**, precision/recall/F1 across thresholds, **lead-time distribution
+      (median 8, mean 6.5 windows before first alert)**, per-family + false-alarm
+      rate (`python3 eval_forecasting.py` → `eval_forecasting.json`)
+- [x] `knowledge_base.py` — **CAPEC/CVE enrichment** (closes gap 4): every
+      family gets its CAPEC attack patterns + illustrative known CVEs, surfaced
+      in the demo app's alert panel
 
 **Phase 4 — Docs + deck**
 - [x] `docs/architecture.md` — 2-page: pipeline, world-model math P(S_t+1|S_t),

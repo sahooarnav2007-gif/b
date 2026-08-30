@@ -1,0 +1,62 @@
+{
+  "empirical_next_window_state_transitions": {
+    "rows": {
+      "0": "SAFE",
+      "1": "INCOMING",
+      "2": "ATTACK"
+    },
+    "counts": [
+      [
+        2991,
+        21,
+        0
+      ],
+      [
+        0,
+        239,
+        147
+      ],
+      [
+        18,
+        126,
+        2101
+      ]
+    ],
+    "row_normalized_probabilities": [
+      [
+        0.993,
+        0.007,
+        0.0
+      ],
+      [
+        0.0,
+        0.619,
+        0.381
+      ],
+      [
+        0.008,
+        0.056,
+        0.936
+      ]
+    ]
+  },
+  "lstm_next_attack_window_auc": 0.814,
+  "n_forecast_pairs": 5555,
+  "risk_t_vs_actual_state_t1_contingency": {
+    "LOW": {
+      "safe": 2758,
+      "incoming": 217,
+      "attack": 554
+    },
+    "MED": {
+      "safe": 39,
+      "incoming": 22,
+      "attack": 30
+    },
+    "HIGH": {
+      "safe": 124,
+      "incoming": 147,
+      "attack": 1664
+    }
+  }
+}
