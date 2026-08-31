@@ -35,6 +35,9 @@ Constraints that shaped the build:
 - **8 real CICIDS2017 captures** (~2.83 M flows) are the only data; raw files
   are git-ignored (>100 MB each), models and results are committed so the demo
   and eval scripts run without the raw data.
+- **Deployment dependency set**: `scikit-learn==1.8.0` (exact pickle match to
+  training env), `numpy==2.0.2`, `pandas==2.2.3`, `streamlit`, `scapy`.
+  Legacy Flask/FastAPI/uvicorn dependencies removed (old app replaced).
 
 ---
 
@@ -56,11 +59,21 @@ Constraints that shaped the build:
      world_model_dynamics.py ─► empirical vs LSTM P(S_{t+1}|S_t), next-state AUC 0.814
 
                      RUN TIME (offline on any machine)
-  flow CSV ──► infer.py (streaming) ─────────────┐
-  PCAP ─────► packet_features.py ─► windows.csv ──┤→ same 76 features → models
-                                                 ▼
-                              app.py (Streamlit) → risk timeline, family, MITRE
-                               stage, attribution, novelty callout
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │  INGESTION PATHS — both converge on the same 76-feature     │
+  │  representation the models were trained on                   │
+  │                                                              │
+  │  flow CSV ──► infer.py (RollingFeatureBuilder) ─────────┐   │
+  │  PCAP ─────► packet_features.py ─► windows.csv ─────────┤   │
+  │              (Scapy PcapReader, 500-pkt windows,         │   │
+  │               same 10 raw features + 11 packet-extras)  │   │
+  │                                                          ▼   │
+  │                              app.py (Streamlit)             │
+  │                              → risk timeline, family,       │
+  │                                MITRE stage, attribution,    │
+  │                                novelty callout              │
+  └──────────────────────────────────────────────────────────────┘
 ```
 
 Component map:
@@ -72,11 +85,12 @@ Component map:
 | `lstm_improve.py` | improved cross-day LSTM training (ship artifact) |
 | `logreg_baseline.py` | mandated baseline |
 | `infer.py` | streaming live inference (CSV or pre-windowed CSV) |
-| `packet_features.py` | packet-level extraction (PCAP) |
-| `app.py` | offline Streamlit demo |
+| `packet_features.py` | PCAP → pre-windowed CSV via Scapy (packet-level path) |
+| `app.py` | offline Streamlit demo (accepts both CSV and PCAP) |
 | `zero_day_callout.py` | novelty / "unlike anything trained" advisory |
 | `eval_forecasting.py`, `walk_forward_cv.py`, `world_model_dynamics.py` | evaluation |
 | `run_all.sh` | one-command reproducibility (`data \| models \| eval \| app`) |
+| `docs/sih26153_deck.md` | 5-slide presentation deck (Phase 4 deliverable) |
 
 ---
 
@@ -109,26 +123,50 @@ Component map:
 
 ## 4. Feature engineering
 
-- **10 raw per-window features**: `packet_rate, byte_rate, unique_dst_ips,
-  unique_dst_ports, syn_ack_ratio, avg_pkt_size, dst_port_entropy,
-  failed_conn_rate, fwd_psh_rate, avg_flow_duration`.
-  - Full details: `packet_rate`/`byte_rate` = clipped *mean* of per-flow
-    `Flow Packets/s` / `Flow Bytes/s`; `unique_dst_ips` is derived from
-    `Destination Port` cardinality (the CICIDS capture carries a degenerate
-    destination-IP field, so the port count is the stable "scanning" proxy);
-    `syn_ack_ratio` = `(ΣSYN+1)/(ΣACK+1)`; entropy = Shannon entropy over the
-    destination-port multiset; `failed_conn_rate` = `ΣRST / window`;
-    `fwd_psh_rate` = `ΣFwd PSH / window`.
-- **Rolling features** (per-window-size w ∈ {3,6,12}): moving **mean** and
-  moving **std** (ddof=1) over the past w windows for each of the 10 raw cols
-  (60 cols) + `portcount_slope_w` and `entropy_slope_w` (6 cols, = value at t
-  minus value at t−w). Rolling stats are grouped **per-day** so no information
-  leaks across day boundaries (a chain of windows never spans two days).
-  Total: **76 features** per window.
-- **Forecast label** `y_forecast`: a window is positive if an attack window
-  *starts within the next 6 windows* (`FORECAST_HORIZON=6`) on the same day.
-  This makes the task a true forecast ("an attack is imminent"), not instant
-  detection. Positive rate over the full week ≈ 46%.
+### 4.1 Raw features (10 units — shared by both paths)
+
+| Feature | Source (flow CSV) | Source (PCAP) |
+|---|---|---|
+| `packet_rate` | mean of per-flow `Flow Packets/s` (clipped) | packets / window duration |
+| `byte_rate` | mean of per-flow `Flow Bytes/s` (clipped) | IP bytes / window duration |
+| `unique_dst_ips` | cardinality of destination port field* | `len(dst_ips)` |
+| `unique_dst_ports` | cardinality of destination port field | `len(dst_ports)` |
+| `syn_ack_ratio` | `(ΣSYN+1)/(ΣACK+1)` | `(syn_noack+1)/(syn_ack+1)` |
+| `avg_pkt_size` | clipped mean of `Total Length of Fwd Packet` | mean packet size |
+| `dst_port_entropy` | Shannon entropy over dst-port multiset | same (via `_entropy`) |
+| `failed_conn_rate` | `ΣRST / window` | `rst / tcp_n` |
+| `fwd_psh_rate` | `ΣFwd PSH / window` | `psh / tcp_n` |
+| `avg_flow_duration` | clipped mean of `Flow Duration` | mean flow duration (from 5-tuple table) |
+
+*\*The CICIDS capture carries a degenerate destination-IP field — the port
+count is the stable "scanning" proxy.*
+
+### 4.2 Rolling features (66 units — offline build and live parity)
+
+For each window-size w ∈ {3,6,12} and each of the 10 raw columns: moving
+**mean** and moving **std** (ddof=1) over the past w windows (60 cols), plus
+`portcount_slope_w` and `entropy_slope_w` (6 cols, = value at t minus value at
+t−w). Rolling stats are grouped **per-day** so no information leaks across day
+boundaries (a chain of windows never spans two days).
+**Total: 76 features** per window.
+
+### 4.3 Packet-extras (11 units — PCAP path only, informational)
+
+Computed by `packet_features.py` during PCAP → CSV conversion and appended as
+extra columns to the output CSV, but **NOT consumed by the trained models**:
+`ttl_mean, ttl_std, tcp_win_mean, tcp_win_std, frag_ratio, df_ratio,
+syn_only_rate, icmp_ratio, udp_ratio, retrans_ratio, distinct_src_ips`.
+
+These exist for analyst context and heuristic stage-labelling (see §11); the
+models see exactly the same 10 raw + 66 rolling = 76 columns regardless of
+whether input was a flow CSV or a PCAP.
+
+### 4.4 Forecast label
+
+`y_forecast`: a window is positive if an attack window *starts within the next
+6 windows* (`FORECAST_HORIZON=6`) on the same day. This makes the task a true
+forecast ("an attack is imminent"), not instant detection. Positive rate over
+the full week ≈ 46%.
 
 > **Guarantee (parity):** the streaming path (`infer.py`'s
 > `RollingFeatureBuilder`) produces the *same* 76 columns as the offline build —
@@ -170,12 +208,12 @@ Component map:
     checkpoints → cross-day 0.471. **Mini-batch gradient accumulation (B=32) +
     full-length training (last checkpoint)** lifted cross-day AUC to **0.643**
     (precision 0.824, recall 0.299) and is what the shipped `lstm_weights.json`
-    contains (provenance recorded in the artifact). Augmentation was tried
-    (jitter/time-warp/sign-flip, 2×) and *hurt* (0.285, 0.268) — reported in
-    `lstm_improve_summary.json` as a negative result. Trade-off: the improved
-    training regressed within-day AUC to 0.544 (the batch model generalizes
-    cross-day at the cost of within-week memorization) — both numbers
-    documented side by side.
+    contains (provenance recorded in the artifact: "batch-32 Adam, no augment,
+    40 epochs"). Augmentation was tried (jitter/time-warp/sign-flip, 2×) and
+    *hurt* (0.285, 0.268) — reported in `lstm_improve_summary.json` as a
+    negative result. Trade-off: the improved training regressed within-day AUC
+    to 0.544 (the batch model generalizes cross-day at the cost of within-week
+    memorization) — both numbers documented side by side.
   - *Independent check*: **rolling-origin walk-forward CV** (§6) with the RF.
 - **Why a discrete/continuous "world model"?** The LSTM is legitimately a
   sequence model of network state dynamics (see §7), meeting the PS's
@@ -319,9 +357,11 @@ for activity unlike anything in training".
   lightweight 5-tuple flow table (flow durations, retransmission counts,
   SYN/ACK flags), so packet windows are **directly consumable by the same
   trained models** via `infer.py` (pre-windowed CSV path).
-- **PS-required packet extras** per window: TTL mean/std, TCP window-size
-  mean/std, IP fragment ratio, DF ratio, SYN-only flood rate, ICMP ratio,
-  UDP ratio, retransmission ratio, distinct source IPs.
+- **11 packet-extras** (informational, not model inputs): `ttl_mean, ttl_std,
+  tcp_win_mean, tcp_win_std, frag_ratio, df_ratio, syn_only_rate, icmp_ratio,
+  udp_ratio, retrans_ratio, distinct_src_ips`. These are appended as extra
+  columns in the output CSV for analyst context; the models only consume the
+  10 raw + 66 rolling = 76 columns (see §4.3).
 - **Heuristic stage for label-less pcaps**: icmp/syn flood → `dos`/Impact;
   retrans-heavy SYN flood → `dos`; SYN-only across many ports → `port_scan`/
   Reconnaissance (heuristics are rules, not learned — see §16).
@@ -391,11 +431,16 @@ One command pipeline (`run_all.sh`):
 - Seeds pinned (`random_state=42`, `np.random.seed(42)`); model artifacts,
   results JSON, and CSVs are committed so `eval`/`app` run **without** the raw
   dataset (raw captures git-ignored; redownload from UNB to rebuild).
-- Community-Cloud deployment path (optional): push → share.streamlit.io →
-  repo `sahooarnav2007-gif/b` → `main` → `app.py`; pin `scikit-learn` in
-  `requirements.txt` to silence the pickle `InconsistentVersionWarning`
-  (predictions verified valid across 1.8→1.9). Upload cap 200 MB on the free
-  tier — within the demo CSVs' size.
+- **Pinned requirements** (`requirements.txt`): `scikit-learn==1.8.0`
+  (exact match to the pickle training environment; eliminates the
+  `InconsistentVersionWarning` on deploy), `numpy==2.0.2`, `pandas==2.2.3`,
+  `streamlit`, `scapy`. Legacy Flask/FastAPI/uvicorn dependencies removed.
+- **Community-Cloud deployment path**: push → share.streamlit.io →
+  repo `sahooarnav2007-gif/b` → `main` → `app.py`. Upload cap 200 MB on the
+  free tier — within the demo CSVs' size. First load after sleep takes ~30–60 s.
+- **Deliverables**: source code + README + 2-page architecture write-up
+  (compressed from this file) + 5-slide deck (`docs/sih26153_deck.md`) +
+  2-minute demo video + running offline app.
 
 ---
 
@@ -414,6 +459,8 @@ One command pipeline (`run_all.sh`):
 | Walk-forward pooled AUC (6 folds) | 0.722 | walk_forward_cv.json |
 | World-model next-state AUC | 0.814 | world_model_dynamics.json |
 | Family classifier accuracy | 0.241 (weak prior, never verdict) | full_model_summary.json |
+| Live RF first alert (Friday DDoS) | window 36, peak risk 0.991 | verified end-to-end |
+| Live LSTM first alert (Friday DDoS) | window 41, peak risk 1.0 | verified end-to-end |
 
 ---
 
@@ -431,10 +478,44 @@ One command pipeline (`run_all.sh`):
 4. **Packet path synthetic-only** — no real CICIDS2017 PCAP validated yet.
 5. **CAPEC/CVE map is static/illustrative**, not a live NVD feed.
 6. **sklearn pickle version-drift** is a warning (verified valid 1.8→1.9);
-   pin in `requirements.txt` for cloud.
+   pinned in `requirements.txt` for cloud deployment.
 7. **No early-warning deal on brute-force/web/botnet families at 0.5** — the
    tuned operating point (threshold 0.3: recall 0.64, precision 0.90) is the
    intended production configuration.
 8. **Novelty callout is advisory** — it says "unlike everything trained",
    which is *correlated* with but not *equal* to "malicious". Analysts review;
    it is not an automated zero-day verdict.
+
+---
+
+## Appendix A. Full file inventory
+
+| File | Purpose |
+|---|---|
+| `full_pipeline.py` | Corpus → windowed feature table (`full_features.csv`) |
+| `full_train.py` | RF forecaster + family classifier, dual-protocol eval |
+| `lstm_world_model.py` | NumPy LSTM world model (train + eval + saliency) |
+| `lstm_improve.py` | Improved cross-day LSTM (batch-32 Adam, 40 epochs) |
+| `logreg_baseline.py` | Mandated logistic-regression baseline |
+| `infer.py` | Streaming live inference (CSV or pre-windowed CSV) |
+| `packet_features.py` | PCAP → pre-windowed CSV via Scapy (packet-level path) |
+| `app.py` | Offline Streamlit demo (CSV + PCAP upload) |
+| `zero_day_callout.py` | Novelty callout (k-NN, advisory) |
+| `eval_forecasting.py` | Forecasting metrics: AUPRC, lead time, per-family |
+| `walk_forward_cv.py` | Rolling-origin walk-forward CV (6 folds) |
+| `world_model_dynamics.py` | Empirical vs LSTM P(S_{t+1}\|S_t), next-state AUC |
+| `knowledge_base.py` | CAPEC/CVE enrichment per attack family |
+| `run_all.sh` | One-command reproducibility pipeline |
+| `requirements.txt` | Pinned deployment dependencies |
+| `full_features.csv` | 5651 windows × 76 columns (committed) |
+| `full_predictions.csv` | 1404 test-row predictions (committed) |
+| `full_model_summary.json` | RF / LSTM / logreg cross-day + within-day AUCs |
+| `lstm_weights.json` | Shipped LSTM weights + provenance |
+| `lstm_improve_summary.json` | LSTM cross-day improvement study results |
+| `eval_forecasting.json` | AUPRC, threshold table, lead-time distribution |
+| `walk_forward_cv.json` | Per-fold AUCs, pooled AUC |
+| `world_model_dynamics.json` | Empirical transition matrix, next-state AUC |
+| `kill_chain_mapping.json` | MITRE stage mapping + per-family attack-window counts |
+| `saliency_demo.json` | Saved LSTM saliency example (real DDoS forecast) |
+| `docs/architecture.md` | This file — detailed master architecture |
+| `docs/sih26153_deck.md` | 5-slide presentation deck (Phase 4 deliverable) |
