@@ -1,5 +1,5 @@
-numpy==2.0.2
-pandas==2.2.3
-scikit-learn==1.8.0
+numpy
+pandas
+scikit-learn
 streamlit
 scapy
