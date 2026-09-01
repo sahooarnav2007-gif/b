@@ -376,12 +376,12 @@ def run_inference(path, engine, max_windows=0, window_size=WINDOW_SIZE,
         nonlocal timeline, rows_seen
         preds = engine.predict_batch(
             [b[3] for b in batch], [b[1] for b in batch])
-        for (wid, raw_feat, gt_family, _), pred in zip(batch, preds):
+        for (wid, raw_feat, gt_family, row), pred in zip(batch, preds):
             if pred is None:
                 continue
             risk, alert, family, stage, attr, zero_day = pred
             rows_seen += 1
-            timeline.append({
+            entry = {
                 "window_id": wid,
                 "flows_in_window": window_size,
                 "gt_family": gt_family,
@@ -392,7 +392,10 @@ def run_inference(path, engine, max_windows=0, window_size=WINDOW_SIZE,
                 "attribution": attr,
                 "zero_day": zero_day,
                 "features": {k: round(float(v), 3) for k, v in raw_feat.items()},
-            })
+            }
+            if alert:  # keep the payload light: full 76-col row only for alerts
+                entry["row76"] = {k: round(float(v), 6) for k, v in row.items()}
+            timeline.append(entry)
             if progress and (wid % 50 == 0):
                 print(f"  window {wid}: risk={risk:.3f} {'ALERT' if alert else ''}")
 
@@ -431,7 +434,7 @@ def _run_prefeatured(path, engine, max_windows=0):
                 continue
             r = df.iloc[ridx]
             risk, alert, family, stage, attr, zero_day = pred
-            timeline.append({
+            entry = {
                 "window_id": int(r["window_id"]),
                 "flows_in_window": WINDOW_SIZE,
                 "gt_family": str(r.get("attack_family", "none")),
@@ -442,7 +445,10 @@ def _run_prefeatured(path, engine, max_windows=0):
                 "attribution": attr,
                 "zero_day": zero_day,
                 "features": {k: round(float(r[k]), 3) for k in RAW_FEATURE_COLS},
-            })
+            }
+            if alert:
+                entry["row76"] = {k: round(float(v), 6) for k, v in row.items()}
+            timeline.append(entry)
 
     for idx, r in df.iterrows():
         raw_feat = {c: r[c] for c in RAW_FEATURE_COLS}
