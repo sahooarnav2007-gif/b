@@ -72,6 +72,8 @@ def sev_badge(sev):
         return "high", "HIGH"
     if s == "MEDIUM":
         return "med", "MEDIUM"
+    if s in ("NONE", "LOW"):
+        return "none", s
     return "low", s or "—"
 
 
@@ -195,7 +197,8 @@ try:
         from packet_features import pcap_to_windows_csv
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as t:
             tmp_path = t.name
-        pcap_to_windows_csv(input_path, tmp_path)
+        with st.spinner("Parsing PCAP → flow windows…"):
+            pcap_to_windows_csv(input_path, tmp_path)
         pcap_extras = pd.read_csv(tmp_path)
     with st.spinner("Streaming inference… this runs offline; big files take a moment."):
         timeline, summary = run_inference(tmp_path, engine,
@@ -366,8 +369,15 @@ with tab1:
 
         st.markdown('<div class="sec-title"><h3>Alert feed</h3></div>',
                     unsafe_allow_html=True)
-        n_show = st.radio("Show first", [10, 25, 50], index=1, horizontal=True)
-        for _, row in flagged.head(n_show).iterrows():
+        n_show = st.selectbox(
+            "Show", [10, 25, 50, len(flagged)],
+            index=1,
+            format_func=lambda n: ("All" if n >= len(flagged)
+                                   else f"First {n}"),
+            key="feed_limit")
+        shown_cnt = n_show if n_show < len(flagged) else len(flagged)
+        st.caption(f"Showing **{shown_cnt} of {len(flagged)}** alert windows.")
+        for _, row in flagged.head(shown_cnt).iterrows():
             rcls, rlab = risk_badge(row["risk_score"])
             zd_b = bool(row.get("zero_day", {}).get("zero_day_likely")) if row.get("zero_day") else False
             attr = row.get("attribution") or {}
@@ -383,10 +393,10 @@ with tab1:
                 f"</div>"
                 f"{'<div style=\'margin-top:6px;color:var(--muted);font-size:.78rem\'>drivers: ' + ' · '.join(html.escape(k) for k in drivers.split(', ')) if drivers else ''}</div></div>",
                 unsafe_allow_html=True)
-        if len(flagged) > n_show:
-            st.caption(f"…and {len(flagged) - n_show} more alerts — switch to "
-                       "What-If / Explainability for per-window depth, or use "
-                       "the trainer to lower the threshold for the full set.")
+        if len(flagged) > shown_cnt:
+            st.caption(f"…and {len(flagged) - shown_cnt} more alerts — switch to "
+                       "What-If / Explainability for per-window depth, or raise "
+                       "the limit above for the full set.")
         with st.expander("Full alerts table"):
             shown = flagged.copy()
             if "attribution" in shown:
@@ -506,12 +516,15 @@ with tab3:
                     base = float(feat[c])
                     lo = float(min(base * 0.5, base))
                     hi = float(max(base * 2.0, base + 1.0))
-                    edited[c] = cc[i % 2].slider(c.replace("_", " ").title(),
-                                                 lo, hi, base, key=f"wi_{c}")
+                    with cc[i % 2]:
+                        edited[c] = st.slider(c.replace("_", " ").title(),
+                                              lo, hi, base, key=f"wi_{c}")
+                        st.caption(f"baseline `{base:.4g}`")
             with colR:
                 st.markdown(
                     f"<div class='metric-card'><span style='color:var(--dim);"
-                    f"font-size:.72rem;text-transform:uppercase;letter-spacing:.06em'>Result</span>",
+                    f"font-size:.72rem;text-transform:uppercase;letter-spacing:.06em'>Result"
+                    f"</span></div>",
                     unsafe_allow_html=True)
                 if st.button("▶ Run What-If", type="primary", use_container_width=True):
                     new_row = dict(baseline_row or {})
@@ -525,15 +538,13 @@ with tab3:
                     if not alert:
                         rcls, rlab = "safe", "SUPPRESSED"
                     st.markdown(
-                        f"<span style='font-family:var(--mono);font-weight:800;"
-                        f"font-size:2rem'>{risk:.3f}</span>&nbsp;"
+                        f"<div class='metric-card'><span style='font-family:var(--mono);"
+                        f"font-weight:800;font-size:2rem'>{risk:.3f}</span>&nbsp;"
                         f"<span class='badge {rcls}'>{rlab}</span><br>"
                         f"<span style='font-family:var(--mono);color:{'#f87171' if delta>0 else '#4ade80'}"
-                        f";font-weight:700'>{delta:+.3f}</span> Δ",
-                        unsafe_allow_html=True)
-                    st.markdown(
+                        f";font-weight:700'>{delta:+.3f}</span> Δ<br><br>"
                         f"<span class='chip'>{html.escape(str(fam))}</span> "
-                        f"<span class='chip'>{html.escape(str(stage))}</span>",
+                        f"<span class='chip'>{html.escape(str(stage))}</span></div>",
                         unsafe_allow_html=True)
                     if not alert:
                         st.success("The proposed mitigation would suppress "
@@ -544,7 +555,6 @@ with tab3:
                 else:
                     st.markdown("Hit **Run What-If** to evaluate the edited "
                                 "features against the live model.")
-                st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================================================
 # TAB 4 — ACTIVE DEFENSE
@@ -559,12 +569,17 @@ with tab4:
     if len(flagged) == 0:
         st.info("No active alert to build a playbook around.")
     else:
-        first = flagged.iloc[0]
-        fam = first["attack_family"]
+        sel4_opts = flagged.sort_values(
+            "risk_score", ascending=False)["window_id"].astype(int).tolist()
+        sel4 = st.selectbox("Alert to defend", sel4_opts,
+                            format_func=lambda w: f"Window #{int(w)}",
+                            index=0, key="defense_window")
+        row = flagged[flagged["window_id"].astype(int) == sel4].iloc[0]
+        fam = row["attack_family"]
         src = "attacker.example"
         try:
-            dport = int(tl[tl["predicted_alert"]].iloc[0].get(
-                "features", {}).get("unique_dst_ports", 0)) or 80
+            dport = int((row.get("features") or {}).get(
+                "unique_dst_ports", 0)) or 80
         except Exception:
             dport = 80
         intel = defense.get_mitre_intel(fam)
@@ -585,21 +600,22 @@ with tab4:
         with cc1b:
             st.markdown(
                 f"<div class='metric-card'><b>Playbook for window "
-                f"<span style='font-family:var(--mono)'>#{int(first['window_id'])}</span></b><br>"
+                f"<span style='font-family:var(--mono)'>#{int(row['window_id'])}</span></b><br>"
                 f"<span class='chip'>{html.escape(str(fam))}</span> "
-                f"<span class='chip'>{html.escape(str(first['mitre_stage']))}</span>"
+                f"<span class='chip'>{html.escape(str(row['mitre_stage']))}</span>"
                 f"<p style='margin:.6rem 0 0;color:var(--muted)'>Rule source IPs "
                 f"are shown generically — the model surfaces features, not "
                 f"captured addresses.</p></div>", unsafe_allow_html=True)
         st.markdown('<div class="sec-title"><h3>Suggested firewall rules</h3></div>',
                     unsafe_allow_html=True)
         rules = defense.generate_firewall_rules(src, dport, fam)
-        rc1, rc2 = st.columns(2)
+        rc1, rc2, rc3 = st.columns(3)
         with rc1:
             st.code(rules["iptables"], language="bash")
         with rc2:
+            st.code(rules["windows_netsh"], language="bat")
+        with rc3:
             st.code(rules["cisco_acl"], language="text")
-        st.code(rules["windows_netsh"], language="bat")
         st.markdown('<div class="sec-title"><h3>Dynamic decoy honeypot</h3></div>',
                     unsafe_allow_html=True)
         if st.button("🪤 Trigger honeypot redirection demo", type="primary"):
@@ -629,7 +645,9 @@ with tab5:
              f"<span style='color:#3b82f6;padding:0 2px'>→</span>")
             for b in ledger.chain)
         st.markdown(f"<div class='metric-card'><b>Block chain</b><br>"
-                    f"<div style='margin-top:8px'>{chain_html}</div></div>",
+                    f"<div style='margin-top:8px;overflow-x:auto;"
+                    f"white-space:nowrap;padding-bottom:6px'>{chain_html}</div>"
+                    f"</div>",
                     unsafe_allow_html=True)
         if ledger.verify_integrity():
             st.success("✅ Merkle chain integrity: **VALID** — no tampering detected")
@@ -646,22 +664,27 @@ with tab5:
         if len(flagged) == 0:
             st.info("No active alert to record.")
         else:
-            first = flagged.iloc[0]
-            intel = defense.get_mitre_intel(first["attack_family"])
-            meta = family_meta(first["attack_family"])
+            sel5_opts = flagged.sort_values(
+                "risk_score", ascending=False)["window_id"].astype(int).tolist()
+            sel5 = st.selectbox("Alert to record", sel5_opts,
+                                format_func=lambda w: f"Window #{int(w)}",
+                                index=0, key="forensic_window")
+            row = flagged[flagged["window_id"].astype(int) == sel5].iloc[0]
+            intel = defense.get_mitre_intel(row["attack_family"])
+            meta = family_meta(row["attack_family"])
             scls, slab = sev_badge(intel["severity"])
-            attr = first.get("attribution") or {}
+            attr = row.get("attribution") or {}
             reasoning = meta["description"] + (". " + ", ".join(
                 f"{k} {v:+.3f}" for k, v in list(attr.items())[:5]) if attr else "")
             incident = {
-                "attack_family": first["attack_family"],
+                "attack_family": row["attack_family"],
                 "severity": intel["severity"],
                 "cvss_score": intel["cvss_score"],
                 "src_ip": "attacker.example",
                 "dst_ip": "target.example",
                 "dst_port": 80,
-                "window_id": int(first["window_id"]),
-                "risk_score": float(first["risk_score"]),
+                "window_id": int(row["window_id"]),
+                "risk_score": float(row["risk_score"]),
                 "mitre_tactic": intel["tactic"],
                 "mitre_id": intel["technique_id"],
                 "mitre_name": intel["technique_name"],
@@ -669,15 +692,15 @@ with tab5:
                 "forensic_reasoning": reasoning,
                 "recommended_action": intel["recommended_action"],
                 "iptables_cmd": defense.generate_firewall_rules(
-                    "attacker.example", 80, first["attack_family"])["iptables"],
+                    "attacker.example", 80, row["attack_family"])["iptables"],
             }
             st.markdown(
                 f"<div class='metric-card'>"
                 f"<span class='badge {scls}'>{slab}</span> "
-                f"<span class='chip'>{html.escape(str(first['attack_family']))}</span>"
+                f"<span class='chip'>{html.escape(str(row['attack_family']))}</span>"
                 f"<p style='margin:.6rem 0 0'>Window "
-                f"<span style='font-family:var(--mono)'>#{int(first['window_id'])}</span>"
-                f" · risk <span style='font-family:var(--mono)'>{first['risk_score']:.3f}</span>"
+                f"<span style='font-family:var(--mono)'>#{int(row['window_id'])}</span>"
+                f" · risk <span style='font-family:var(--mono)'>{row['risk_score']:.3f}</span>"
                 f" · MITRE <span style='font-family:var(--mono)'>{intel['technique_id']}</span></p></div>",
                 unsafe_allow_html=True)
             if st.button("📄 Record incident + generate report", type="primary",

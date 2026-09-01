@@ -42,10 +42,25 @@ GLOBE_HTML = """
     padding:5px 10px; border-radius:8px; }
   .legend .arc { display:inline-block; width:18px; height:2px; background:#22d3ee;
     vertical-align:middle; margin-right:6px; box-shadow:0 0 8px #22d3ee; }
+  .globe-loader { position:absolute; inset:0; z-index:4; display:flex;
+    flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    opacity:1; transition: opacity .6s ease; pointer-events:none;
+    font-family:'JetBrains Mono',monospace; font-size:10px;
+    letter-spacing:.16em; color:#7b93c4;
+    background: radial-gradient(120% 130% at 50% 8%, rgba(30,58,138,.35), rgba(6,9,18,.92) 70%); }
+  .globe-loader .spin { width:44px; height:44px; border-radius:50%;
+    border:2px solid rgba(59,130,246,.18); border-top-color:#3b82f6;
+    border-right-color:#22d3ee; animation: spin 1s linear infinite; }
+  .globe-loader.hidden { opacity:0; visibility:hidden; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
   <div id="stage">
+    <div class="globe-loader" id="globeLoader">
+      <div class="spin"></div>
+      <div>ESTABLISHING SATELLITE LINK</div>
+    </div>
     <div class="threat-chip"><span class="pulse-dot"></span>THREAT INTEL · LIVE GLOBAL MAP</div>
     <div class="legend"><span class="arc"></span>forecasted attack path</div>
   </div>
@@ -197,6 +212,8 @@ resize();
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
+let firstFrame = true;
+const splash = document.getElementById('globeLoader');
 function animate(){
   requestAnimationFrame(animate);
   const dt = clock.getDelta();
@@ -206,6 +223,7 @@ function animate(){
     d.mesh.position.copy(d.curve.getPoint(d.t)); });
   controls.update();
   renderer.render(scene, camera);
+  if (firstFrame) { firstFrame = false; if (splash) splash.classList.add('hidden'); }
 }
 animate();
 </script>
@@ -245,7 +263,7 @@ def _stat(n, label, cls):
 
 
 def _meta():
-    if _load("full_model_summary.json"):
+    if full:
         return ("RandomForest forecaster @ 76-dim rolling windows · "
                 "trained on CICIDS2017 (Mon–Thu), evaluated cross-day on Friday")
     return None
