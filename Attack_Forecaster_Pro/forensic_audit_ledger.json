@@ -1,0 +1,20 @@
+[
+  {
+    "block_id": 0,
+    "timestamp": "2026-09-01T19:59:41.576318",
+    "event_type": "SYSTEM_GENESIS",
+    "details": "Forensic Audit Chain Initialized",
+    "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "block_hash": "a61ef761be2d16465de548fa9f0e237a1c5815094d19590a6f6dad2d1b8c536b"
+  },
+  {
+    "block_id": 1,
+    "timestamp": "2026-09-01T19:59:41.576385",
+    "event_type": "ATTACK_INCIDENT_FLAGGED",
+    "details": {
+      "test": "ok"
+    },
+    "prev_hash": "a61ef761be2d16465de548fa9f0e237a1c5815094d19590a6f6dad2d1b8c536b",
+    "block_hash": "75d071cf83b63e8be02a7db7d8cb81d1ede26c3bfa26155a4943f9f7d18dca73"
+  }
+]
