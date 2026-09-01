@@ -308,8 +308,8 @@ incident PDF report (falls back to `.txt` when absent).
 | `active_defense.py` | SOAR tab: MITRE ATT&CK intel, generated firewall rules (iptables/netsh/Cisco ACL), honeypot DNAT simulation |
 | `forensics_report.py` | SHA-256 Merkle-chain ledger (tamper-detecting) + SOC incident PDF report (fpdf2) |
 | `app.py` | Multi-page entry point (`st.navigation`) → Home + SOC Dashboard |
-| `home.py` | Home page: hero, value prop, quick-start, pipeline overview |
-| `dashboard.py` | SOC Dashboard: 5 tabs (Forecaster, Explainability, What-If, Active Defense, Forensic Audit) |
+| `home.py` | Home page: hero (animated radar + live eval stats), pipeline diagram, quick-start |
+| `dashboard.py` | SOC Dashboard: empty-state CTA + Run Demo, overview strip + risk sparkline, 5 tabs |
 | `zero_day_callout.py` | Novelty callout (k-NN, advisory) |
 | `knowledge_base.py` | CAPEC/CVE enrichment per attack family |
 | `eval_forecasting.py` | Forecasting metrics: AUPRC, lead time, per-family |
@@ -371,7 +371,7 @@ incident PDF report (falls back to `.txt` when absent).
 
 ### Phase 5 — Video + shipping
 - [ ] 2-minute demo video: file upload → risk timeline → MITRE stage → attribution
-- [x] Multi-page UI: Home page + 5-tab SOC Dashboard ported + committed
+- [x] Multi-page UI: Home hero + overview/dashboard with interactive charts
 - [x] README updated, committed, pushed
 - [ ] Community Cloud re-verify of tabbed app (needs browser login) + live URL
   → `https://<app>.streamlit.app`
