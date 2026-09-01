@@ -247,20 +247,25 @@ published offline numbers.
 
 ### Requirements (`requirements.txt`)
 ```
-numpy==2.0.2
-pandas==2.2.3
-scikit-learn==1.8.0    # exact pickle match to training env
+numpy
+pandas
+scikit-learn
 streamlit
 scapy
+fpdf2
 ```
-Legacy Flask/FastAPI/uvicorn dependencies removed.
+Left **unpinned** on purpose: pinning `numpy==2.0.2` shipped no py3.14 wheel and
+broke the Cloud build (`ModuleNotFoundError` at `pickle.load`). sklearn now loads
+1.8 pickles with a harmless `InconsistentVersionWarning`. `fpdf2` powers the SOC
+incident PDF report (falls back to `.txt` when absent).
 
 ### Community Cloud
 1. Push `main` via GitHub Desktop
 2. share.streamlit.io → New app → repo `sahooarnav2007-gif/b` → branch `main`
    → file `app.py` → Deploy
-3. Verify: CSV upload, PCAP upload, RF/LSTM toggle, risk timeline, MITRE
-   breakdown, novelty callout
+3. Verify: 5 tabs — 🔭 Forecaster + 🔬 Explainability + 🧪 What-If Lab +
+   🛡 Active Defense + 📜 Forensic Audit — across CSV upload, PCAP upload,
+   RF/LSTM toggle, and the demo artifact (Friday DDoS recommended)
 4. Free tier sleeps after inactivity (~30–60 s cold start). Upload cap 200 MB.
 
 ---
@@ -297,9 +302,11 @@ Legacy Flask/FastAPI/uvicorn dependencies removed.
 | `lstm_improve.py` | Improved cross-day LSTM (batch-32 Adam, 40 epochs) |
 | `logreg_baseline.py` | Mandated logistic-regression baseline |
 | `mitre_stages_and_explainability.py` | MITRE stage remapping + saliency demo |
-| `infer.py` | Streaming live inference (CSV or pre-windowed CSV) |
+| `infer.py` | Streaming live inference (CSV or pre-windowed CSV); snapshots the real `row76` vector on alert windows for What-If |
 | `packet_features.py` | PCAP → pre-windowed CSV via Scapy (packet-level path) |
-| `app.py` | Offline Streamlit demo (CSV + PCAP upload) |
+| `active_defense.py` | SOAR tab: MITRE ATT&CK intel, generated firewall rules (iptables/netsh/Cisco ACL), honeypot DNAT simulation |
+| `forensics_report.py` | SHA-256 Merkle-chain ledger (tamper-detecting) + SOC incident PDF report (fpdf2) |
+| `app.py` | Offline 5-tab Streamlit SOC demo (CSV + PCAP upload + demo artifact) |
 | `zero_day_callout.py` | Novelty callout (k-NN, advisory) |
 | `knowledge_base.py` | CAPEC/CVE enrichment per attack family |
 | `eval_forecasting.py` | Forecasting metrics: AUPRC, lead time, per-family |
@@ -361,8 +368,11 @@ Legacy Flask/FastAPI/uvicorn dependencies removed.
 
 ### Phase 5 — Video + shipping
 - [ ] 2-minute demo video: file upload → risk timeline → MITRE stage → attribution
+- [x] 5-tab SOC UI ported + committed (What-If, Active Defense, Forensic Audit)
 - [x] README updated, committed, pushed
-- [ ] Community Cloud deploy test (pin requirements ready; needs browser login)
+- [ ] Community Cloud re-verify of tabbed app (needs browser login) + live URL
+  → `https://<app>.streamlit.app`
+- [ ] Sidebar stack trace verification of `row76` features on pre-featurized path
 
 ### Stretch (optional)
 - [ ] Real CICIDS2017 PCAP validation of packet path
@@ -404,5 +414,6 @@ like it did real science.
 - **Repo**: `https://github.com/sahooarnav2007-gif/b`
 - **Commits on `main`**: all code + models + docs + deck pushed
 - **Raw CICIDS2017 CSVs**: git-ignored (too large); download from UNB to rebuild
-- **Community Cloud**: share.streamlit.io → `app.py` on `main`; pinned deps
-  (`scikit-learn==1.8.0`) eliminate the pickle `InconsistentVersionWarning`
+- **Community Cloud**: share.streamlit.io → `app.py` on `main`; unpinned deps
+  (see Requirements) — sklearn 1.9 loads 1.8 pickles with a harmless
+  `InconsistentVersionWarning`
