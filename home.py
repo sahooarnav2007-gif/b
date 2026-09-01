@@ -13,6 +13,206 @@ import streamlit as st
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+GLOBE_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin:0; padding:0; background:transparent; overflow:hidden; }
+  #stage { position:relative; width:100%; height:100%;
+    border:1px solid #22304b; border-radius:16px; overflow:hidden;
+    background:
+      radial-gradient(120% 130% at 50% 8%, rgba(30,58,138,.35), rgba(6,9,18,.92) 70%);
+    box-shadow: 0 22px 50px -18px rgba(0,0,0,.8), inset 0 0 80px -40px rgba(59,130,246,.5);
+  }
+  #stage canvas { display:block; width:100%; height:100%; }
+  .threat-chip { position:absolute; top:12px; left:14px; z-index:5; pointer-events:none;
+    display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace;
+    font-size:10px; letter-spacing:.14em; color:#93c5fd;
+    background:rgba(10,15,30,.72); border:1px solid rgba(59,130,246,.4);
+    padding:6px 12px; border-radius:999px; backdrop-filter:blur(3px); }
+  .pulse-dot { width:7px; height:7px; border-radius:50%; background:#34d399;
+    animation:pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(52,211,153,.6);}
+    50%{ box-shadow:0 0 0 6px rgba(52,211,153,0);} }
+  .legend { position:absolute; bottom:12px; right:14px; z-index:5; pointer-events:none;
+    font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.1em; color:#7c8fae;
+    background:rgba(10,15,30,.7); border:1px solid rgba(59,130,246,.25);
+    padding:5px 10px; border-radius:8px; }
+  .legend .arc { display:inline-block; width:18px; height:2px; background:#22d3ee;
+    vertical-align:middle; margin-right:6px; box-shadow:0 0 8px #22d3ee; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div class="threat-chip"><span class="pulse-dot"></span>THREAT INTEL · LIVE GLOBAL MAP</div>
+    <div class="legend"><span class="arc"></span>forecasted attack path</div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const stage = document.getElementById('stage');
+const R0 = 2.05;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(43, 1, 0.1, 120);
+camera.position.set(0, 0.9, 7.4);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+stage.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enablePan = false;
+controls.minDistance = 3.4;
+controls.maxDistance = 12;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.7;
+controls.enableDamping = true;
+
+// ---------- lights ----------
+scene.add(new THREE.AmbientLight(0xffffff, 0.32));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.position.set(5, 3, 4);
+scene.add(sun);
+const rim = new THREE.PointLight(0x3b82f6, 1.2, 30);
+rim.position.set(-6, -2, -5);
+scene.add(rim);
+
+// ---------- Earth ----------
+const loader = new THREE.TextureLoader();
+const earthMat = new THREE.MeshPhongMaterial({
+  map: loader.load('https://unpkg.com/three-globe/example/img/earth-dark.jpg'),
+  emissive: new THREE.Color(0x0a1a33),
+  emissiveIntensity: 0.65,
+  specular: new THREE.Color(0x1b3355),
+  shininess: 14,
+  color: 0xffffff,
+});
+const earth = new THREE.Mesh(new THREE.SphereGeometry(R0, 64, 64), earthMat);
+scene.add(earth);
+
+// clouds band for motion texture (subtle)
+const cloudTex = loader.load('https://unpkg.com/three-globe/example/img/clouds.png');
+const clouds = new THREE.Mesh(
+  new THREE.SphereGeometry(R0 * 1.018, 48, 48),
+  new THREE.MeshPhongMaterial({ map: cloudTex, transparent:true, opacity:0.18,
+    depthWrite:false }));
+scene.add(clouds);
+
+// ---------- atmosphere glow ----------
+const glow = new THREE.Mesh(
+  new THREE.SphereGeometry(R0 * 1.16, 48, 48),
+  new THREE.ShaderMaterial({
+    uniforms: { glowColor: { value: new THREE.Color(0x3b82f6) } },
+    vertexShader: `varying vec3 vN;
+      void main(){ vN = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);}`,
+    fragmentShader: `uniform vec3 glowColor; varying vec3 vN;
+      void main(){ float i = pow(0.66 - dot(vN, vec3(0.,0.,1.)), 3.2);
+        gl_FragColor = vec4(glowColor, max(i, 0.0) * 0.85);}`,
+    side: THREE.BackSide, blending: THREE.AdditiveBlending,
+    transparent: true, depthWrite: false }));
+scene.add(glow);
+
+// ---------- stars ----------
+{
+  const n = 1400, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = 45 + Math.random() * 30;
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.acos(2 * Math.random() - 1);
+    pos[i*3]   = r * Math.sin(ph) * Math.cos(th);
+    pos[i*3+1] = r * Math.cos(ph);
+    pos[i*3+2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({
+    color:0xbfd9ff, size:0.05, transparent:true, opacity:0.85 })));
+}
+
+// ---------- attack arcs ----------
+function llToV(lat, lon, r){
+  const phi   = (90 - lat) * Math.PI / 180;
+  const theta = (lon + 180) * Math.PI / 180;
+  return new THREE.Vector3(
+    -r * Math.sin(phi) * Math.cos(theta),
+     r * Math.cos(phi),
+     r * Math.sin(phi) * Math.sin(theta));
+}
+
+const PAIRS = [
+  [[40.71,-74.01],[39.90,116.40]],
+  [[-23.55,-46.63],[28.61,77.21]],
+  [[51.51,-0.13],[-33.87,151.21]],
+  [[55.76,37.62],[-33.92,18.42]],
+  [[52.52,13.40],[35.68,139.69]],
+  [[45.42,-75.70],[1.35,103.82]],
+  [[36.10,-95.71],[12.97,77.60]],
+];
+const dots = [];
+PAIRS.forEach((p, idx) => {
+  const A = llToV(p[0][0], p[0][1], R0);
+  const B = llToV(p[1][0], p[1][1], R0);
+  const mid = new THREE.Vector3().addVectors(A, B).multiplyScalar(0.5);
+  const ctrl = mid.clone().normalize().multiplyScalar(R0 + 0.95);
+  const curve = new THREE.QuadraticBezierCurve3(A, ctrl, B);
+  const pts = Array.from({length:90}, (_,i)=>curve.getPoint(i/89));
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const col = idx % 2 ? 0xf87171 : 0x22d3ee;
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color:col, transparent:true, opacity:0.5, depthWrite:false }));
+  scene.add(line);
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.032, 12, 12),
+    new THREE.MeshBasicMaterial({ color: idx % 2 ? 0xfda4af : 0x7dd3fc }));
+  scene.add(dot);
+  dots.push({ curve, t:(idx*0.17)%1, sp:0.0011 + Math.random()*0.0007, mesh: dot });
+});
+
+// ---------- resize ----------
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if (w === 0 || h === 0) return;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ---------- loop ----------
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  earth.rotation.y += dt * 0.05;
+  clouds.rotation.y += dt * 0.11;
+  dots.forEach(d => { d.t += dt * d.sp; if (d.t > 1) d.t -= 1;
+    d.mesh.position.copy(d.curve.getPoint(d.t)); });
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
+"""
+
 
 def _load(name, default=None):
     try:
@@ -53,30 +253,39 @@ def _meta():
 
 meta = _meta()
 
-st.markdown("""
-<div class="hero">
-  <div class="radar"></div>
-  <div class="kicker">AI-Based Network Attack Forecasting · SIH26153</div>
-  <h1>🛰 NetSight</h1>
-  <div class="sub">
-    A fully offline SOC forecaster that forecasts <b>known attack progressions</b>
-    up to 6 windows ahead, maps every alert to <b>MITRE ATT&CK</b>, explains each
-    prediction with the model's own reasoning, and raises a <b>novelty callout</b>
-    for activity unlike anything in training. Ingests raw CICIDS2017 flow CSV,
-    pre-featurized windows, or a PCAP — nothing ever leaves your machine.
-  </div>
-  <div class="stat-row">
-""" + (
+hc1, hc2 = st.columns([1.7, 1.0], gap="large")
+
+with hc1:
+    st.markdown("""
+    <div class="hero">
+      <div class="kicker">AI-Based Network Attack Forecasting · SIH26153</div>
+      <h1>🛰 NetSight</h1>
+      <div class="sub">
+        A fully offline SOC forecaster that forecasts <b>known attack
+        progressions</b> up to 6 windows ahead, maps every alert to
+        <b>MITRE ATT&CK</b>, explains each prediction with the model's own
+        reasoning, and raises a <b>novelty callout</b> for activity unlike
+        anything in training. Ingests raw CICIDS2017 flow CSV, pre-featurized
+        windows, or a PCAP — nothing ever leaves your machine.
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+    stat_html = f"""
+    <div class="stat-row">
+    """ + (
         _stat(rf_auc, "cross-day AUC", "g") if rf_auc else "") + (
         _stat(wo_auc, "within-day AUC", "g") if wo_auc else "") + (
         _stat(auprc, "forecast AUPRC", "b") if auprc else "") + (
         _stat(wm_auc, "next-state AUC (LSTM)", "v") if wm_auc else "") + (
         _stat(pooled, "walk-forward AUC", "o") if pooled else "") + (
-        _stat(lead_med, "lead time (median w)", "b") if lead_med else "") +
+        _stat(lead_med, "lead time (median w)", "b") if lead_med else "") + """
+    </div>
     """
-  </div>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown(stat_html, unsafe_allow_html=True)
+
+with hc2:
+    st.iframe(GLOBE_HTML, width="stretch", height=460)
+    st.caption("Simulated global threat arcs · Earth texture: NASA night-lights")
 
 
 if meta:
