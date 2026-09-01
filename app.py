@@ -43,7 +43,31 @@ st.markdown("""
 
 html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 
-.stApp { background: radial-gradient(1200px 600px at 80% -10%, #101a33 0%, #0b0f19 55%); }
+.stApp {
+    background:
+        radial-gradient(1100px 600px at 85% -10%, rgba(37,99,235,.16), transparent 60%),
+        radial-gradient(900px 600px at -5% 40%, rgba(99,102,241,.10), transparent 55%),
+        radial-gradient(700px 500px at 60% 110%, rgba(34,211,238,.10), transparent 55%),
+        #090d16;
+}
+/* cyber grid */
+.stApp::before {
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+        linear-gradient(rgba(59,130,246,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,.045) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 40%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 40%, transparent 100%);
+}
+/* animated scanline sweep */
+.stApp::after {
+    content:""; position:fixed; left:0; right:0; height:160px; pointer-events:none;
+    z-index:1; top:-160px;
+    background: linear-gradient(180deg, transparent, rgba(59,130,246,.05), transparent);
+    animation: scan 7s linear infinite;
+}
+@keyframes scan { to { transform: translateY(120vh); } }
 
 /* ---------- scrollbars ---------- */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -227,6 +251,107 @@ pre, code, [class*="codeCell"] { font-family:var(--mono); }
 /* ---------- animations ---------- */
 @keyframes fadeUp { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform:none;} }
 .fadeup { animation: fadeUp .45s ease both; }
+
+/* ============================================================
+   GLASS DESIGN SYSTEM
+   ============================================================ */
+.glass {
+    position:relative; overflow:hidden;
+    background: linear-gradient(150deg, rgba(255,255,255,.06), rgba(255,255,255,.015));
+    border: 1px solid rgba(148,163,184,.16);
+    border-radius: 16px;
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 18px 40px -18px rgba(0,0,0,.7),
+                inset 0 1px 0 rgba(255,255,255,.08);
+}
+.glass::before {
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background: linear-gradient(120deg,
+        rgba(59,130,246,.10), transparent 30%,
+        transparent 70%, rgba(34,211,238,.07));
+    opacity:.5;
+}
+.glass.hover:hover {
+    border-color: rgba(59,130,246,.45);
+    transform: translateY(-3px);
+    box-shadow: 0 22px 50px -18px rgba(37,99,235,.55),
+                inset 0 1px 0 rgba(255,255,255,.1);
+}
+.glass .glass-inner { position:relative; z-index:1; }
+
+/* sheen sweep on hover */
+.glass.hover::after {
+    content:""; position:absolute; top:0; bottom:0; left:-80%; width:60%;
+    background: linear-gradient(105deg, transparent, rgba(255,255,255,.12), transparent);
+    transform: skewX(-18deg); transition: left .6s ease; pointer-events:none;
+}
+.glass.hover:hover::after { left: 120%; }
+
+/* hero is itself glass but taller */
+.hero.glass { padding: 42px 40px; margin-bottom: 10px; }
+
+/* cyber-style section heading */
+.csec { display:flex; align-items:center; gap:12px; margin:34px 0 18px; position:relative; }
+.csec::before { content:""; width:4px; height:20px; border-radius:3px;
+    background:linear-gradient(180deg,#22d3ee,#3b82f6); box-shadow:0 0 12px rgba(34,211,238,.7); }
+.csec h3 { margin:0; font-size:1.1rem; letter-spacing:.02em; }
+.csec .csec-line { flex:1; height:1px;
+    background:linear-gradient(90deg, rgba(59,130,246,.4), transparent); }
+
+/* ============================================================
+   ANIMATED DATA-FLOW PIPELINE
+   ============================================================ */
+.pipeline { position:relative; display:grid;
+    grid-template-columns: repeat(5, 1fr); gap: 26px; margin: 8px 0 6px; }
+.pipe-node { position:relative; text-align:center; padding: 22px 14px 18px; }
+.pipe-node .ico { width:58px; height:58px; margin:0 auto 12px; border-radius:14px;
+    display:flex; align-items:center; justify-content:center; font-size:1.6rem;
+    background: linear-gradient(145deg, rgba(59,130,246,.18), rgba(30,41,59,.35));
+    border: 1px solid rgba(59,130,246,.35); position:relative; overflow:visible;
+    box-shadow: 0 0 20px -4px rgba(59,130,246,.5), inset 0 1px 0 rgba(255,255,255,.12); }
+.pipe-node .ico::before {
+    content:""; position:absolute; inset:-5px; border-radius:18px; pointer-events:none;
+    border:1px solid rgba(34,211,238,.25); animation: nodeRing 2.6s ease-in-out infinite; }
+@keyframes nodeRing { 0%,100%{ transform:scale(.94); opacity:.4;}
+    50%{ transform:scale(1.05); opacity:.9;} }
+.pipe-node .name { font-weight:800; font-size:.95rem; letter-spacing:.02em;
+    color:var(--text); }
+.pipe-node .det { color:var(--dim); font-size:.74rem; margin-top:5px; line-height:1.4;
+    font-family:var(--mono); }
+.pipe-node .tag { display:inline-flex; align-items:center; gap:6px; margin-top:10px;
+    font-family:var(--mono); font-size:.66rem; letter-spacing:.12em; color:#7dd3fc;
+    background:rgba(7,15,30,.55); border:1px solid rgba(59,130,246,.3);
+    padding:3px 8px; border-radius:6px; }
+.pipe-node .tag i { width:6px; height:6px; border-radius:50%; background:#34d399;
+    animation: blink 1.4s steps(2,start) infinite; }
+@keyframes blink { to { visibility:hidden; } }
+
+/* animated data pulse traveling between nodes */
+.pipe-link { position:absolute; top:45px; height:2px;
+    background: linear-gradient(90deg, rgba(59,130,246,.25), rgba(34,211,238,.55)); z-index:0; }
+.pipe-link::after {
+    content:""; position:absolute; top:50%; left:0; width:8px; height:8px; margin-top:-4px;
+    border-radius:50%; background:#7dd3fc; box-shadow:0 0 10px 2px #22d3ee;
+    animation: dataFlow 1.5s linear infinite; }
+@keyframes dataFlow { from { left:0; opacity:1;} to { left:100%; opacity:0;} }
+
+/* ============================================================
+   GLASS STAT CARDS
+   ============================================================ */
+.stat-row.glass { gap:14px; display:grid;
+    grid-template-columns: repeat(6, 1fr); margin-top:20px; }
+.stat.glass { flex:none; background:linear-gradient(150deg,
+        rgba(59,130,246,.10), rgba(10,16,32,.55));
+    border:1px solid rgba(148,163,184,.16); border-radius:14px; padding:14px 16px;
+    backdrop-filter: blur(10px); box-shadow: inset 0 1px 0 rgba(255,255,255,.07); }
+.stat.glass .n { font-size:1.75rem; font-weight:800; font-family:var(--mono); }
+.stat.glass .l { font-size:.7rem; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--dim); margin-top:3px; }
+.stat.glass .n.g { color:#4ade80; text-shadow:0 0 14px rgba(74,222,128,.5); }
+.stat.glass .n.b { color:#60a5fa; text-shadow:0 0 14px rgba(96,165,250,.5); }
+.stat.glass .n.v { color:#a78bfa; text-shadow:0 0 14px rgba(167,139,250,.5); }
+.stat.glass .n.o { color:#fbbf24; text-shadow:0 0 14px rgba(251,191,36,.5); }
 
 footer { visibility: hidden; }
 </style>
