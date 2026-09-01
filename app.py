@@ -244,6 +244,9 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 /* ---------- expander ---------- */
 [data-testid="stExpander"] { border:1px solid #1e293b; background:#0f172a; border-radius:10px; }
 
+/* ---------- iframe (home globe) ---------- */
+[data-testid="stIFrame"] { margin-top: 52px; }
+
 /* ---------- dataframes / code ---------- */
 [data-testid="stDataFrame"] { border:1px solid #1c2740; border-radius:10px; overflow:hidden; }
 pre, code, [class*="codeCell"] { font-family:var(--mono); }
