@@ -457,6 +457,64 @@ try:
 
         # ---- incident detail expander ----
         with st.expander(f"🔎 Incident drill-down ({len(incidents)} incidents)"):
+            try:
+                # generate a SOC PDF forensic report for a chosen incident
+                pdf_opts = ["Incident #{} — {} ({} windows)".format(
+                    i["incident_id"], i.get("priority", "?"), i["windows"])
+                    for i in incidents]
+                pdf_sel = st.selectbox("Generate SOC PDF report for", pdf_opts,
+                                       index=0, key="incident_pdf_sel")
+                chosen_inc = incidents[int(pdf_sel.split("—")[0].replace("Incident #", "").strip()) - 1]
+                if st.button("📄 Generate forensic PDF report", key="incident_pdf_btn"):
+                    alert_win = chosen_inc["first_window"]
+                    prow = flagged[flagged["window_id"].astype(int) == alert_win]
+                    if len(prow):
+                        pr = prow.iloc[0]
+                        intel = defense.get_mitre_intel(pr["attack_family"])
+                        meta = family_meta(pr["attack_family"])
+                        attr = pr.get("attribution") or {}
+                        reasoning = meta["description"] + (". " + ", ".join(
+                            f"{k} {v:+.3f}" for k, v in list(attr.items())[:5]) if attr else "")
+                        inc2 = {
+                            "attack_family": pr["attack_family"],
+                            "severity": chosen_inc.get("priority", "HIGH"),
+                            "cvss_score": intel["cvss_score"],
+                            "src_ip": "attacker.example",
+                            "dst_ip": "target.example",
+                            "dst_port": 80,
+                            "window_id": int(alert_win),
+                            "risk_score": chosen_inc["peak_risk"],
+                            "mitre_tactic": intel["tactic"],
+                            "mitre_id": intel["technique_id"],
+                            "mitre_name": intel["technique_name"],
+                            "cve_example": intel["cve_example"],
+                            "forensic_reasoning": (reasoning +
+                                                   f" Correlated incident #{chosen_inc['incident_id']}, "
+                                                   f"{chosen_inc['duration_windows']} windows from w"
+                                                   f"{chosen_inc['first_window']}–w{chosen_inc['last_window']}."),
+                            "recommended_action": intel["recommended_action"],
+                            "iptables_cmd": defense.generate_firewall_rules(
+                                "attacker.example", 80, pr["attack_family"])["iptables"],
+                            "block_hash": "CORRELATED-INCIDENT-" + str(chosen_inc["incident_id"]),
+                        }
+                        pdf_path = generate_pdf_report(inc2, os.path.join(
+                            tempfile.gettempdir(), f"Incident_{chosen_inc['incident_id']}_Report.pdf"))
+                        st.session_state["last_report"] = pdf_path
+                        st.success(f"Report generated for Incidents #{chosen_inc['incident_id']}.")
+                pdf_path2 = st.session_state.get("last_report")
+                if pdf_path2 and os.path.exists(pdf_path2):
+                    ext = pdf_path2.rsplit(".", 1)[-1]
+                    mime = "application/pdf" if ext == "pdf" else "text/plain"
+                    with open(pdf_path2, "rb") as fh:
+                        st.download_button(
+                            label="⬇ Download SOC report",
+                            data=fh.read(),
+                            file_name=os.path.basename(pdf_path2),
+                            mime=mime, key="dl_incident_pdf")
+                st.markdown("<div style='border-top:1px dashed rgba(148,163,184,.15);"
+                            "margin:10px 0'></div>", unsafe_allow_html=True)
+            except Exception:
+                pass
             for inc in incidents:
                 iwid_start, iwid_end = inc["first_window"], inc["last_window"]
                 sub = tl[(tl["window_id"].astype(int) >= iwid_start) &
@@ -663,6 +721,36 @@ with tab1:
                        "visualizes which families are active and when.")
         except Exception:
             pass
+
+    # ---- attack narrative timeline (Gantt-style, family x windows) ----
+    try:
+        if "attack_family" in tl.columns and len(tl):
+            fam = tl["attack_family"].fillna("none").astype(str)
+            fam = fam.map(lambda x: "benign" if x == "none" else x)
+            gdf = tl.assign(_fam=fam)
+            gdf = gdf[gdf["_fam"] != "benign"]
+            if len(gdf):
+                gantt = alt.Chart(gdf).mark_bar(cornerRadiusEnd=2).encode(
+                    x=alt.X("window_id:O", title="window"),
+                    y=alt.Y("_fam:N", title="attack family"),
+                    color=alt.Color("_fam:N", legend=None,
+                                    scale=alt.Scale(
+                                        domain=sorted(gdf["_fam"].unique()),
+                                        range=["#22d3ee", "#f87171", "#a78bfa",
+                                               "#fbbf24", "#4ade80", "#60a5fa"])),
+                    tooltip=[alt.Tooltip("window_id:O", title="window"),
+                             alt.Tooltip("_fam:N", title="family"),
+                             alt.Tooltip("risk_score:Q", title="risk", format=".3f"),
+                             alt.Tooltip("mitre_stage:N", title="MITRE")],
+                ).properties(height=120)
+                st.markdown('<div class="sec-title"><h3>Attack narrative timeline</h3></div>',
+                            unsafe_allow_html=True)
+                st.altair_chart(gantt, width="stretch")
+                st.caption("Each bar = an alert window colored by attack family. "
+                           "Reads like a story: which family is active, when it "
+                           "peaks, and how the campaign progresses over time.")
+    except Exception:
+        pass
 
     if len(flagged) == 0:
         st.success("No alerts at the current threshold.")
