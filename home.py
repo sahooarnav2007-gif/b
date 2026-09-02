@@ -65,10 +65,10 @@ GLOBE_HTML = """
     <div class="legend"><span class="arc"></span>forecasted attack path</div>
   </div>
 
-  <!-- Vendored from /app/static (served same-origin by Streamlit) so the globe
-       never depends on CDN availability or sandboxed ES-module fetching. -->
-  <script src="/app/static/three/three.min.js"></script>
-  <script src="/app/static/three/OrbitControls.js"></script>
+  <!-- Vendored three.js + OrbitControls inlined below at runtime (no CDN,
+       no external fetch, works offline in the sandboxed iframe). -->
+  <script>/*__THREE_SRC__*/</script>
+  <script>/*__ORBIT_SRC__*/</script>
 
 <script>
 'script' + ''; // no-op marker keeps strict tooling calm
@@ -284,6 +284,33 @@ def _load(name, default=None):
             return json.load(fh)
     except Exception:
         return default
+
+
+def _read(name):
+    try:
+        with open(os.path.join(HERE, name), encoding="utf-8") as fh:
+            return fh.read()
+    except Exception:
+        return ""
+
+
+# Inline the vendored three.js + OrbitControls directly into GLOBE_HTML so the
+# globe runs with zero external fetches (works offline and inside Streamlit's
+# sandboxed iframe, where CDN/module scripts fail). The only transformation is
+# escaping any `</script>` sequence so it cannot prematurely close the tag.
+try:
+    def _inline_js(js):
+        if not js:
+            return ""
+        # Escape both </script> and </SCRIPT> so it stays a literal text token.
+        return (js.replace("</scr" + "ipt>", "<\\/scr" + "ipt>")
+                  .replace("</SCR" + "IPT>", "<\\/SCR" + "IPT>"))
+
+    GLOBE_HTML = (GLOBE_HTML
+        .replace("/*__THREE_SRC__*/", _inline_js(_read("static/three/three.min.js")))
+        .replace("/*__ORBIT_SRC__*/", _inline_js(_read("static/three/OrbitControls.js"))))
+except Exception:
+    pass
 
 
 full = _load("full_model_summary.json", {})
