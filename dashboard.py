@@ -390,6 +390,53 @@ try:
             mime="application/json",
             help="Download the correlated incident summary as structured JSON "
                  "for import into a SIEM or case-management tool.")
+
+        # ---- incident detail expander ----
+        with st.expander(f"🔎 Incident drill-down ({len(incidents)} incidents)"):
+            for inc in incidents:
+                iwid_start, iwid_end = inc["first_window"], inc["last_window"]
+                sub = tl[(tl["window_id"].astype(int) >= iwid_start) &
+                         (tl["window_id"].astype(int) <= iwid_end)]
+                st.markdown(
+                    f"<div style='margin:14px 0 4px'><span class='ipri "
+                    f"pri-{inc.get('priority','MEDIUM').lower()}'>{inc.get('priority','?')}"
+                    f"</span> <b>Incident #{inc['incident_id']}</b>"
+                    f" <span style='color:var(--dim)'>w{iwid_start}–w{iwid_end}"
+                    f" · {inc['duration_windows']} windows · ~{inc['estimated_flows']:,} "
+                    f"flows · severity {inc['severity']:.3f}</span></div>",
+                    unsafe_allow_html=True)
+                if len(sub) and "risk_score" in sub:
+                    hist = alt.Chart(sub).mark_bar(cornerRadiusEnd=2).encode(
+                        x=alt.X("window_id:O", title="window"),
+                        y=alt.Y("risk_score:Q", title="risk",
+                                scale=alt.Scale(domain=[0, 1])),
+                        color=alt.condition(alt.datum.predicted_alert,
+                                            alt.value("#ef4444"),
+                                            alt.value("#3b82f6")),
+                        tooltip=[alt.Tooltip("window_id:O", title="window"),
+                                 alt.Tooltip("risk_score:Q", title="risk", format=".3f")],
+                    ).properties(height=110)
+                    st.altair_chart(hist, width="stretch")
+                fams = sub["attack_family"].value_counts().head(3)
+                if len(fams):
+                    st.caption("Families: " + ", ".join(
+                        f"<b style='color:var(--text)'>{html.escape(str(f))}</b> ×{c}"
+                        for f, c in fams.items()))
+                drivers = {}
+                for _, r in sub.iterrows():
+                    for k, v in (r.get("attribution") or {}).items():
+                        drivers[k] = drivers.get(k, 0.0) + abs(float(v))
+                if drivers:
+                    topd = sorted(drivers.items(), key=lambda kv: -kv[1])[:5]
+                    chipc = "".join(
+                        f"<span class='chip r'>{html.escape(str(k))}</span>"
+                        for k, _ in topd)
+                    st.markdown(f"<div style='font-size:.62rem;text-transform:uppercase;"
+                                f"letter-spacing:.08em;color:var(--dim)'>Top drivers "
+                                f"across incident</div><div>{chipc}</div>",
+                                unsafe_allow_html=True)
+                st.markdown("<div style='border-top:1px dashed rgba(148,163,184,.15);"
+                            "margin:10px 0'></div>", unsafe_allow_html=True)
     else:
         st.caption("No alert windows to correlate into incidents at the current "
                    "threshold.")
@@ -697,11 +744,17 @@ with tab2:
     # ---- PER-WINDOW ATTRIBUTION ----
     st.markdown('<div class="sec-title"><h3>Real per-window feature attribution</h3></div>',
                 unsafe_allow_html=True)
-    st.markdown("For the **RandomForest**, risk is re-run with each top feature "
-                "set to its batch mean (mean-imputation ablation) — the drop in "
-                "risk is that feature's contribution. For the **LSTM**, gradient "
-                "saliency over the input sequence is used. This is the model's "
-                "*own* reasoning, not a separate explainer.")
+    is_lstm = model_name == "LSTM"
+    if is_lstm:
+        st.info("**Engine = LSTM.** Gradient **saliency** over the 12-step input "
+                "sequence: each number is the absolute mean gradient (normalized "
+                "to sum ≈ 1) — **how much** that traffic feature influenced the "
+                "network-state prediction. Larger = higher influence.")
+    else:
+        st.info("**Engine = RandomForest.** **Mean-imputation ablation**: risk is "
+                "re-run with each top feature fixed to its batch mean; the change "
+                "in risk is that feature's contribution. Red = pushes risk up · "
+                "green = pulls it down. This is the model's own reasoning.")
     if len(flagged) == 0:
         st.info("No alert windows to explain at the current threshold.")
     else:
@@ -729,17 +782,28 @@ with tab2:
                 f"<span class='chip {'r' if c > 0 else 'o'}'>{html.escape(f)} "
                 f"{c:+.3f}</span>" for f, c in zip(top10["feature"], top10["contribution"]))
             st.markdown(f"<div>{chips}</div>", unsafe_allow_html=True)
-            bar = alt.Chart(top10).mark_bar(cornerRadiusEnd=3).encode(
-                x=alt.X("contribution:Q", title="contribution "
-                        "(risk drop on mean-imputation)"),
-                y=alt.Y("feature:N", sort="-x"),
-                color=alt.condition(alt.datum.contribution < 0,
-                                    alt.value("#22c55e"),
-                                    alt.value("#ef4444")),
-                tooltip=["feature:N", alt.Tooltip("contribution:Q", format=".4f")],
-            ).properties(height=300)
-            st.altair_chart(bar, width="stretch")
-            st.caption("Red = pushes risk up · green = pulls it down")
+            if is_lstm:
+                bar = alt.Chart(top10).mark_bar(cornerRadiusEnd=3).encode(
+                    x=alt.X("contribution:Q", title="saliency (gradient magnitude)"),
+                    y=alt.Y("feature:N", sort="-x"),
+                    color=alt.value("#a78bfa"),
+                    tooltip=["feature:N", alt.Tooltip("contribution:Q", format=".4f")],
+                ).properties(height=300)
+                st.altair_chart(bar, width="stretch")
+                st.caption("Violet bars = normalized gradient saliency · "
+                           "higher = more influence on the LSTM state prediction")
+            else:
+                bar = alt.Chart(top10).mark_bar(cornerRadiusEnd=3).encode(
+                    x=alt.X("contribution:Q", title="contribution "
+                            "(risk drop on mean-imputation)"),
+                    y=alt.Y("feature:N", sort="-x"),
+                    color=alt.condition(alt.datum.contribution < 0,
+                                        alt.value("#22c55e"),
+                                        alt.value("#ef4444")),
+                    tooltip=["feature:N", alt.Tooltip("contribution:Q", format=".4f")],
+                ).properties(height=300)
+                st.altair_chart(bar, width="stretch")
+                st.caption("Red = pushes risk up · green = pulls it down")
         else:
             st.info("No attribution produced for this window (LSTM saliency is "
                     "emitted only for forecast-positive windows).")
