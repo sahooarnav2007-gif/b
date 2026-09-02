@@ -79,11 +79,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const stage = document.getElementById('stage');
-const R0 = 2.05;
+const R0 = 2.32;
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(43, 1, 0.1, 120);
-camera.position.set(0, 0.9, 7.4);
+const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 120);
+camera.position.set(0, 0, 7.6);
 
 const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -92,8 +92,8 @@ stage.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enablePan = false;
-controls.minDistance = 3.4;
-controls.maxDistance = 12;
+controls.minDistance = 3.8;
+controls.maxDistance = 13;
 controls.autoRotate = true;
 controls.autoRotateSpeed = 0.7;
 controls.enableDamping = true;
@@ -282,13 +282,41 @@ def _meta():
 
 meta = _meta()
 
-hc1, hc2 = st.columns([1.75, 1.0], gap="large")
+# ============================ SIDEBAR =====================================
+with st.sidebar:
+    st.markdown(
+        "<div class='sb-brand'><div class='sb-mark'><span>N</span></div>"
+        "<div class='sb-t'><b>NETSIGHT</b><i>SIH · 26153</i></div></div>",
+        unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("**🚀 Quick launch**")
+    st.button("Open SOC Dashboard",
+              type="primary", use_container_width=True,
+              on_click=lambda: st.switch_page("dashboard.py"))
+    st.markdown("---")
+    st.markdown("**⚙️ Mode**")
+    st.radio("Engine", ["RandomForest", "LSTM"],
+             help="Dashboard default — switch anytime in SOC Dashboard.")
+    st.markdown("---")
+    st.markdown("**📡 Live status**")
+    st.markdown(
+        f"""<div class="sb-status">
+  <div class="sb-row"><span class="k">Engine</span><span class="v c">RF · 76-dim</span></div>
+  <div class="sb-row"><span class="k">Forecast lead</span><span class="v g">{lead_med if lead_med else "8"} w · med</span></div>
+  <div class="sb-row"><span class="k">Walk-fwd AUC</span><span class="v">{pooled if pooled else "—"}</span></div>
+  <div class="sb-row"><span class="k">Ledger</span><span class="v">SHA-256 sealed</span></div>
+</div>""",
+        unsafe_allow_html=True)
+    st.markdown("---")
+    st.caption("Runs 100% offline · models committed · no data leaves the machine.")
+
+hc1, hc2 = st.columns([1.7, 1.0], gap="xlarge")
 
 with hc1:
     st.markdown("""
     <div class="hero glass anim-in">
       <div class="glass-inner">
-        <div class="kicker tt" style="--chars:46;--chars-c:46ch">AI-BASED NETWORK
+        <div class="kicker tt">AI-BASED NETWORK
         ATTACK FORECASTING · SIH26153</div>
         <h1>🛰 NetSight</h1>
         <div class="sub">
@@ -314,7 +342,7 @@ with hc1:
     st.markdown(stat_html, unsafe_allow_html=True)
 
 with hc2:
-    st.iframe(GLOBE_HTML, width="stretch", height=460)
+    st.iframe(GLOBE_HTML, width="stretch", height=520)
     st.caption("Simulated global threat arcs · Earth texture: NASA night-lights")
 
 

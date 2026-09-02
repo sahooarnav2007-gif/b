@@ -310,6 +310,7 @@ incident PDF report (falls back to `.txt` when absent).
 | `app.py` | Multi-page entry point (`st.navigation`) → Home + SOC Dashboard |
 | `home.py` | Home page: hero (animated radar + live eval stats), pipeline diagram, quick-start |
 | `dashboard.py` | SOC Dashboard: empty-state CTA + Run Demo, overview strip + risk sparkline, 5 tabs |
+| `dataset/demo_friday_ddos_windows.csv` | Committed pre-featurized demo (Friday DDoS, 452 windows) — Run Demo works on a fresh clone |
 | `zero_day_callout.py` | Novelty callout (k-NN, advisory) |
 | `knowledge_base.py` | CAPEC/CVE enrichment per attack family |
 | `eval_forecasting.py` | Forecasting metrics: AUPRC, lead time, per-family |
@@ -416,7 +417,14 @@ like it did real science.
 
 - **Repo**: `https://github.com/sahooarnav2007-gif/b`
 - **Commits on `main`**: all code + models + docs + deck pushed
-- **Raw CICIDS2017 CSVs**: git-ignored (too large); download from UNB to rebuild
+- **Shipped demo dataset**: `dataset/demo_friday_ddos_windows.csv` (39 KB) is the
+  pre-featurized version of the full Friday-DDoS capture — **bit-identical
+  pipeline output** (452 windows · 358 alerts · peak risk 1.000 · first alert at
+  window 36) so anyone can run the recommended demo from a fresh clone with no
+  large downloads. Click **Run Friday DDoS Demo** in the SOC Dashboard.
+- **Raw CICIDS2017 CSVs**: git-ignored (too large, ~700 MB total); download from
+  UNB to rebuild the full corpus — `demo_friday_ddos_windows.csv` is generated
+  from Friday-WorkingHours-Afternoon-DDos via `infer.py`.
 - **Community Cloud**: share.streamlit.io → `app.py` on `main`; unpinned deps
   (see Requirements) — sklearn 1.9 loads 1.8 pickles with a harmless
   `InconsistentVersionWarning`

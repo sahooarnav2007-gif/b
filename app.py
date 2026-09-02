@@ -132,6 +132,7 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 .dot.g { background:#22c55e; } .dot.r { background:#ef4444; }
 .dot.y { background:#eab308; } .dot.b { background:#3b82f6; }
 @keyframes pulseDot { 0%,100%{ box-shadow:0 0 0 0 rgba(239,68,68,.5);} 50%{ box-shadow:0 0 0 6px rgba(239,68,68,0);} }
+@keyframes pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(52,211,153,.6);} 50%{ box-shadow:0 0 0 6px rgba(52,211,153,0);} }
 
 /* ---------- alert cards ---------- */
 .alert-card {
@@ -187,6 +188,28 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 [data-testid="stSidebarNav"] li a { border-radius:9px; transition:.15s ease; }
 [data-testid="stSidebarNav"] li a:hover { background:rgba(59,130,246,.10); }
 
+/* sidebar brand + live status (home) */
+.sb-brand { display:flex; align-items:center; gap:10px; padding:2px 2px 6px; }
+.sb-mark { position:relative; width:36px; height:36px; border-radius:10px; flex:none;
+    display:grid; place-items:center; background:linear-gradient(135deg,#1e3a8a,#0f172a);
+    border:1px solid rgba(59,130,246,.5); box-shadow:0 0 16px rgba(59,130,246,.35); }
+.sb-mark::after { content:""; position:absolute; inset:4px; border-radius:6px;
+    border:1px dashed rgba(103,232,249,.55); animation: spin 9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.sb-mark span { color:#60a5fa; font-size:1.2rem; font-weight:800; }
+.sb-t { line-height:1.15; }
+.sb-t b { color:#e2e8f0; font-size:.95rem; letter-spacing:.06em; display:block; }
+.sb-t i { font-style:normal; color:#64748b; font-size:.66rem; letter-spacing:.18em; }
+.sb-status { padding:10px 12px; border:1px solid #1c2740; border-radius:12px;
+    background:linear-gradient(180deg, rgba(15,23,42,.6), rgba(9,13,22,.5)); }
+.sb-status .sb-row { display:flex; justify-content:space-between; padding:5px 0;
+    font-size:.78rem; }
+.sb-status .sb-row:not(:last-child) { border-bottom:1px solid rgba(30,41,59,.6); }
+.sb-status .k { color:#64748b; letter-spacing:.1em; font-size:.64rem; text-transform:uppercase; }
+.sb-status .v { color:#cbd5e1; font-family:var(--mono); font-weight:600; }
+.sb-status .v.g { color:#34d399; }
+.sb-status .v.c { color:#22d3ee; }
+
 /* ---------- tabs ---------- */
 .stTabs [data-baseweb="tab-list"] { gap:6px; border-bottom:1px solid #1e293b; }
 .stTabs [data-baseweb="tab"] {
@@ -236,8 +259,8 @@ html, body, [class*="css"] { font-family: 'Inter', -apple-system, sans-serif; }
 
 /* ---------- iframe (home globe) ---------- */
 [data-testid="stIFrame"] {
-    margin-top: 52px;
-    animation: fadeUp .6s cubic-bezier(.16,.84,.44,1) .2s both, levitate 7s ease-in-out 1.4s infinite;
+    margin-top: 4px;
+    animation: fadeUp .6s cubic-bezier(.16,.84,.44,1) .2s both, levitate 9s ease-in-out 1.4s infinite;
 }
 
 /* ---------- dataframes / code ---------- */
@@ -246,7 +269,7 @@ pre, code, [class*="codeCell"] { font-family:var(--mono); }
 
 /* ---------- animations ---------- */
 @keyframes fadeUp { from { opacity:0; transform: translateY(8px);} to { opacity:1; transform:none;} }
-.fadeup { animation: fadeUp .45s ease both; }
+.fadeup { animation: fadeUp .45s ease backwards; }
 
 /* ============================================================
    GLASS DESIGN SYSTEM
@@ -261,7 +284,7 @@ pre, code, [class*="codeCell"] { font-family:var(--mono); }
     box-shadow: 0 18px 40px -18px rgba(0,0,0,.7),
                 inset 0 1px 0 rgba(255,255,255,.08);
 }
-.glass::before {
+.glass:not(.hero)::before {
     content:""; position:absolute; inset:0; pointer-events:none;
     background: linear-gradient(120deg,
         rgba(59,130,246,.10), transparent 30%,
@@ -270,7 +293,7 @@ pre, code, [class*="codeCell"] { font-family:var(--mono); }
 }
 .glass.hover:hover {
     border-color: rgba(59,130,246,.45);
-    transform: translateY(-3px);
+    transform: perspective(700px) translateY(-4px) rotateX(3deg) rotateY(-2deg) scale(1.01);
     box-shadow: 0 22px 50px -18px rgba(37,99,235,.55),
                 inset 0 1px 0 rgba(255,255,255,.1);
 }
@@ -302,7 +325,7 @@ pre, code, [class*="codeCell"] { font-family:var(--mono); }
 .csec::before { content:""; width:4px; height:20px; border-radius:3px;
     background:linear-gradient(180deg,#22d3ee,#3b82f6); box-shadow:0 0 12px rgba(34,211,238,.7); }
 .csec h3 { margin:0; font-size:1.1rem; letter-spacing:.02em; }
-.csec .csec-line { flex:1; height:1px;
+.csec .csec-line { flex:1; height:2px; border-radius:1px;
     background:linear-gradient(90deg, rgba(59,130,246,.4), transparent); }
 
 /* ============================================================
@@ -366,7 +389,7 @@ html { scroll-behavior: smooth; }
 ::selection { background: rgba(59,130,246,.45); color:#fff; }
 
 /* smooth entrance */
-.anim-in { animation: fadeUp .55s cubic-bezier(.16,.84,.44,1) both; }
+.anim-in { animation: fadeUp .55s cubic-bezier(.16,.84,.44,1) backwards; }
 
 /* ---------- ambient particle field ---------- */
 #bgfx { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden; }
@@ -402,20 +425,20 @@ html { scroll-behavior: smooth; }
 #soc-ticker .tk-label i { width:6px; height:6px; border-radius:50%;
     background:#34d399; animation: pulse 1.6s ease-in-out infinite; }
 #soc-ticker .tk-track { flex:1; overflow:hidden; white-space:nowrap; position:relative; }
-#soc-ticker .tk-inner { display:inline-block; white-space:nowrap; padding-left:100%;
+#soc-ticker .tk-inner { display:inline-block; white-space:nowrap;
     animation: marquee 42s linear infinite; }
 #soc-ticker .tk-inner span { color:#7d8db0; margin-right:34px; }
 #soc-ticker .tk-inner b { color:#e2e8f0; font-weight:600; }
 #soc-ticker .tk-inner em { font-style:normal; color:#34d399; }
-@keyframes marquee { to { transform: translateX(-100%); } }
+@keyframes marquee { to { transform: translateX(-50%); } }
 
 /* ---------- typewriter kicker ---------- */
 .kicker.tt { display:inline-block; overflow:hidden; white-space:nowrap;
-    width:0; animation: tt 1.5s steps(var(--chars, 46), end) .2s forwards; }
+    width:0; animation: tt 1.5s steps(46, end) .2s forwards; }
 .kicker.tt::after { content:""; display:inline-block; width:.55em; height:1em;
     background:#60a5fa; vertical-align:-.12em; margin-left:3px;
     animation: caret 1s steps(2,start) infinite; }
-@keyframes tt { to { width: var(--chars-c, 46ch); } }
+@keyframes tt { to { width: 62ch; } }
 @keyframes caret { 50% { opacity:0; } }
 
 /* ---------- floating hero / globe ---------- */
@@ -435,7 +458,10 @@ html { scroll-behavior: smooth; }
     animation: ringFill 1.2s .35s cubic-bezier(.3,.7,.3,1) forwards; }
 @keyframes ringFill { to { stroke-dashoffset: var(--off, 188.5); } }
 .stat.glass.ring .n { font-size:1.5rem; font-weight:800; font-family:var(--mono);
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    animation: numIn .9s cubic-bezier(.16,.84,.44,1) .45s backwards; }
+@keyframes numIn { from { opacity:0; transform: scale(.7); filter: blur(4px); }
+    to { opacity:1; transform: scale(1); filter: blur(0); } }
 .stat.glass.ring .l { font-size:.62rem; text-transform:uppercase; letter-spacing:.07em;
     color:var(--dim); margin-top:0; line-height:1.25; }
 .stat.glass.ring .rf.g { stroke:#4ade80; filter:drop-shadow(0 0 5px rgba(74,222,128,.6)); }
@@ -446,8 +472,9 @@ html { scroll-behavior: smooth; }
 /* ---------- animated section dividers ---------- */
 .csec-line { position:relative; overflow:hidden; }
 .csec-line::after {
-    content:""; position:absolute; top:0; bottom:0; width:90px;
+    content:""; position:absolute; top:-2px; height:6px; width:110px; border-radius:3px;
     background: linear-gradient(90deg, transparent, rgba(103,232,249,.95), transparent);
+    box-shadow: 0 0 12px rgba(103,232,249,.5);
     animation: travel 3.2s ease-in-out infinite;
 }
 @keyframes travel { 0% { left:-20%; opacity:0;} 12% { opacity:1;} 88% { opacity:1;}
@@ -529,6 +556,106 @@ html { scroll-behavior: smooth; }
 .glow-green:hover { border-color: rgba(74,222,128,.5); box-shadow: 0 20px 46px -18px rgba(74,222,128,.5), inset 0 1px 0 rgba(255,255,255,.1); }
 .glow-violet:hover { border-color: rgba(167,139,250,.5); box-shadow: 0 20px 46px -18px rgba(139,92,246,.55), inset 0 1px 0 rgba(255,255,255,.1); }
 
+/* ============ sidebar brand + HUD panel ============ */
+.ns-brand { display:flex; align-items:center; gap:10px; padding:14px 14px 12px; }
+.ns-brand .ns-mark { position:relative; width:38px; height:38px; border-radius:10px;
+    background:linear-gradient(135deg,#1e3a8a,#0f172a); border:1px solid rgba(59,130,246,.5);
+    display:grid; place-items:center; box-shadow:0 0 18px rgba(59,130,246,.35); flex:none; }
+.ns-brand .ns-mark::after { content:""; position:absolute; inset:4px; border-radius:6px;
+    border:1px dashed rgba(103,232,249,.55); animation: spin 9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ns-brand .ns-mark span { color:#60a5fa; font-size:1.25rem; font-weight:800; }
+.ns-brand .ns-title { line-height:1.15; }
+.ns-brand .ns-title b { color:#e2e8f0; font-size:.95rem; letter-spacing:.06em; display:block; }
+.ns-brand .ns-title i { font-style:normal; color:#64748b; font-size:.68rem;
+    letter-spacing:.18em; text-transform:uppercase; }
+.ns-hud { margin:0 12px 14px; padding:12px 14px; border:1px solid #1c2740;
+    border-radius:12px; background:linear-gradient(180deg, rgba(15,23,42,.6), rgba(9,13,22,.5));
+    backdrop-filter:blur(8px); }
+.ns-hud .ns-stat { display:flex; justify-content:space-between; align-items:center;
+    padding:5px 0; font-size:.78rem; }
+.ns-hud .ns-stat:not(:last-child) { border-bottom:1px solid rgba(30,41,59,.6); }
+.ns-hud .ns-stat .k { color:#64748b; letter-spacing:.1em; font-size:.66rem; text-transform:uppercase; }
+.ns-hud .ns-stat .v { color:#cbd5e1; font-family:var(--mono); font-weight:600; }
+.ns-hud .ns-stat .v.g { color:#34d399; }
+.ns-hud .ns-stat .v.c { color:#22d3ee; }
+.ns-hud .ns-bar { height:4px; border-radius:2px; background:#1e293b; margin:8px 0 2px; overflow:hidden; }
+.ns-hud .ns-bar i { display:block; height:100%; width:0; border-radius:2px;
+    background:linear-gradient(90deg,#22d3ee,#3b82f6); animation: nsFill 1.6s ease .3s forwards;
+    box-shadow:0 0 8px rgba(34,211,238,.6); }
+@keyframes nsFill { to { width: var(--w, 100%); } }
+.ns-tag { display:inline-flex; align-items:center; gap:6px; margin:2px 4px 2px 0;
+    padding:3px 9px; border-radius:20px; font-size:.62rem; letter-spacing:.08em;
+    border:1px solid #24324d; color:#8ea0bb; text-transform:uppercase; }
+.ns-tag::before { content:""; width:5px; height:5px; border-radius:50%; background:#22c55e;
+    box-shadow:0 0 6px #22c55e; }
+.ns-ver { margin:0 12px 8px; text-align:center; color:#475569; font-size:.62rem;
+    letter-spacing:.14em; font-family:var(--mono); }
+[data-testid="stSidebar"] .ns-wrap { position:relative; }
+[data-testid="stSidebar"] .ns-wrap::after { content:""; position:absolute; left:14px; right:14px;
+    bottom:-6px; height:1px;
+    background:linear-gradient(90deg, transparent, rgba(59,130,246,.4), transparent); }
+
+/* ============================================================
+   CURSOR-REACTIVE + MOTION LAYER (Layers 1,2,4,5,6)
+   ============================================================ */
+/* Layer 1 — cursor-following ambient glow (enabled only when JS runs) */
+#cursor-glow {
+    position: fixed; top: 0; left: 0; width: 560px; height: 560px;
+    border-radius: 50%; pointer-events: none; z-index: 0;
+    background: radial-gradient(circle, rgba(59,130,246,.14), rgba(34,211,238,.05) 45%, transparent 70%);
+    transform: translate(-50%, -50%);
+    mix-blend-mode: screen;
+    opacity: 0; transition: opacity .4s ease;
+}
+body.js-on #cursor-glow { opacity: 1; }
+/* pure-CSS fallback glow: gentle breathing ambient light, no cursor tracking */
+body:not(.js-on)::after {
+    content:""; position:fixed; top:-140px; right:-140px; width:560px; height:560px;
+    border-radius:50%; pointer-events:none; z-index:0;
+    background: radial-gradient(circle, rgba(59,130,246,.10), transparent 65%);
+    animation: respire 9s ease-in-out infinite alternate;
+}
+@keyframes respire { from { opacity:.35; transform: scale(1);} to { opacity:.75; transform: scale(1.15);} }
+
+/* Layer 4 — scroll progress bar (fills only when JS runs) */
+#scroll-prog {
+    position: fixed; top: 0; left: 0; height: 3px; z-index: 999;
+    width: 0;
+    background: linear-gradient(90deg, #22d3ee, #3b82f6, #818cf8);
+    box-shadow: 0 0 10px rgba(34,211,238,.6);
+    pointer-events: none;
+    opacity: 0; transition: opacity .3s ease;
+}
+body.js-on #scroll-prog { width: var(--scroll-pct, 0%); opacity: 1; }
+
+/* Layer 5 — hero title breathing glow */
+.hero h1 {
+    background-size: 200% 100%;
+    animation: heroGlow 5s ease-in-out infinite alternate;
+}
+@keyframes heroGlow {
+    from { filter: drop-shadow(0 0 8px rgba(99,102,241,.25)); background-position: 0% 50%; }
+    to   { filter: drop-shadow(0 0 22px rgba(59,130,246,.55)); background-position: 100% 50%; }
+}
+
+/* Layer 6 — ambient floating orb behind hero */
+.hero::after {
+    content:""; position:absolute; width:520px; height:520px; border-radius:50%;
+    top:-140px; right:-120px; pointer-events:none;
+    background: radial-gradient(circle, rgba(59,130,246,.10), rgba(34,211,238,.04) 45%, transparent 62%);
+    animation: orbDrift 14s ease-in-out infinite alternate;
+}
+@keyframes orbDrift {
+    from { transform: translate(0,0) scale(1); }
+    to   { transform: translate(-50px,34px) scale(1.12); }
+}
+
+/* Layer 2 — 3D perspective tilt on glass cards.
+   transform is set per-element by JS handlers; transition lives here. */
+.glass.hover { transform-style: preserve-3d; will-change: transform;
+    transition: transform .18s ease-out, box-shadow .25s ease, border-color .25s ease; }
+
 footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
@@ -557,6 +684,8 @@ _ticker_entries = [
 st.markdown(
     f"""
 <div id="bgfx" aria-hidden="true">{_particles}</div>
+<div id="cursor-glow" aria-hidden="true"></div>
+<div id="scroll-prog" aria-hidden="true"></div>
 <div id="soc-ticker" aria-hidden="true">
   <div class="tk-label"><i></i>NETSIGHT&nbsp;LIVE</div>
   <div class="tk-track">
@@ -566,6 +695,111 @@ st.markdown(
     </div>
   </div>
 </div>
+<script>
+(function () {{
+  try {{ document.body.classList.add('js-on'); }} catch(e) {{}}
+  var glow = document.getElementById('cursor-glow');
+  var prog = document.getElementById('scroll-prog');
+  var root = document.documentElement;
+
+  /* Layer 1 — cursor glow follows mouse */
+  var raf = null;
+  function move(e) {{
+    if (raf) return;
+    raf = requestAnimationFrame(function () {{
+      raf = null;
+      var mx = e.clientX, my = e.clientY;
+      if (glow) {{ glow.style.top = my + 'px'; glow.style.left = mx + 'px'; }}
+      root.style.setProperty('--mx', mx + 'px');
+      root.style.setProperty('--my', my + 'px');
+    }});
+  }}
+  window.addEventListener('mousemove', move, {{ passive: true }});
+
+  /* Layer 4 — scroll progress bar */
+  function scrollP() {{
+    var st = window.scrollY || root.scrollTop || 0;
+    var h = (root.scrollHeight || document.body.scrollHeight) - (root.clientHeight || window.innerHeight);
+    var pct = h > 0 ? (st / h) * 100 : 0;
+    root.style.setProperty('--scroll-pct', pct + '%');
+    if (prog) prog.style.width = pct + '%';
+  }}
+  window.addEventListener('scroll', scrollP, {{ passive: true }});
+
+  /* Layer 2 — 3D tilt on .glass.hover cards */
+  var tiltTargets = null;
+  function collectTilt() {{
+    tiltTargets = document.querySelectorAll('.glass.hover');
+  }}
+  if (window.MutationObserver) {{
+    var mo = new MutationObserver(function () {{ collectTilt(); }});
+    mo.observe(document.body, {{ childList: true, subtree: true }});
+  }}
+  document.addEventListener('mousemove', function (e) {{
+    if (!tiltTargets) collectTilt();
+    var len = tiltTargets.length;
+    for (var i = 0; i < len; i++) {{
+      var el = tiltTargets[i];
+      if (e.target === el || el.contains(e.target)) {{
+        var r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        var px = (e.clientX - r.left) / r.width - 0.5;
+        var py = (e.clientY - r.top) / r.height - 0.5;
+        el.style.transform = 'perspective(700px) rotateX(' + (-py * 8).toFixed(2) + 'deg) rotateY(' + (px * 10).toFixed(2) + 'deg) translateY(-3px)';
+      }}
+    }}
+  }});
+  document.addEventListener('mouseleave', function (e) {{
+    if (!tiltTargets) return;
+    for (var i = 0; i < tiltTargets.length; i++) {{
+      tiltTargets[i].style.transform = '';
+    }}
+  }});
+
+  /* Layer 3 — number counters on stat rings */
+  function animateCount(el) {{
+    var txt = el.textContent.trim().replace(/,$/, '');
+    var val = parseFloat(txt);
+    if (isNaN(val) || txt === '—' || val === 0) return;
+    var start = 0, dur = 1200, t0 = null;
+    var decimals = Math.max(0, (txt.split('.')[1] || '').length);
+    function easeOutCubic(x) {{ return 1 - Math.pow(1 - x, 3); }}
+    function step(ts) {{
+      if (!t0) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      var cur = start + (val - start) * easeOutCubic(p);
+      var out;
+      if (decimals > 0) out = cur.toFixed(decimals);
+      else out = String(Math.round(cur));
+      if (el.hasAttribute('data-orig')) var keep = el.getAttribute('data-orig');
+      el.innerHTML = out;
+      if (p < 1) requestAnimationFrame(step);
+      else el.innerHTML = txt;
+    }}
+    requestAnimationFrame(step);
+  }}
+  function initCounters() {{
+    var els = document.querySelectorAll('.stat.glass.ring .n');
+    for (var i = 0; i < els.length; i++) {{ animateCount(els[i]); }}
+  }}
+  function scheduleCounters() {{
+    var els = document.querySelectorAll('.stat.glass.ring .n');
+    if (els.length) initCounters();
+  }}
+  if (window.MutationObserver) {{
+    var mo2 = new MutationObserver(function (muts) {{
+      var changed = false;
+      for (var m = 0; m < muts.length; m++) {{
+        if (muts[m].addedNodes.length) {{ changed = true; break; }}
+      }}
+      if (changed) scheduleCounters();
+    }});
+    mo2.observe(document.body, {{ childList: true, subtree: true }});
+  }}
+  setTimeout(scheduleCounters, 300);
+  setTimeout(scheduleCounters, 900);
+}}());
+</script>
 """,
     unsafe_allow_html=True,
 )

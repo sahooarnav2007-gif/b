@@ -50,7 +50,7 @@ def load_ledger():
 
 
 DEMO_CSVS = {
-    "Friday DDoS (recommended)": "dataset/Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+    "Friday DDoS (recommended)": "dataset/demo_friday_ddos_windows.csv",
     "Thursday web attacks": "dataset/Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv",
     "Tuesday brute-force": "dataset/Tuesday-WorkingHours.pcap_ISCX.csv",
 }
@@ -179,8 +179,8 @@ if input_path is None:
           <div class="kicker">Awaiting data</div>
           <h1 style="font-size:1.9rem">Ready when you are</h1>
           <div class="sub" style="margin:0 auto">Pick a data source in the
-          sidebar, or hit <b>Run Demo</b> to load the Friday DDoS capture
-          (278 attack windows — the recommended showcase).</div>
+          sidebar, or hit <b>Run Demo</b> to analyze the committed Friday DDoS
+          sample (452 windows · 358 alerts — the recommended showcase).</div>
         </div>""", unsafe_allow_html=True)
         st.button("🚀 Run Friday DDoS Demo", type="primary",
                   use_container_width=True, on_click=_launch_demo)
