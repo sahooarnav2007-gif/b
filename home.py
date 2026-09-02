@@ -108,9 +108,44 @@ rim.position.set(-6, -2, -5);
 scene.add(rim);
 
 // ---------- Earth ----------
+// Procedural fallback planet (grid + city-glow specks) so the globe always
+// renders even if the CDN texture is unavailable.
+function makeEarthTexture() {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 72, 0, 440);
+  grad.addColorStop(0, '#060e22'); grad.addColorStop(.5, '#0c2045'); grad.addColorStop(1, '#060e22');
+  g.fillStyle = grad; g.fillRect(0, 0, 1024, 512);
+  // faint lat/lon grid
+  g.strokeStyle = 'rgba(59,130,246,.10)';
+  for (let i = 0; i <= 12; i++) { g.beginPath(); g.moveTo(0, (512/12)*i); g.lineTo(1024, (512/12)*i); g.stroke(); }
+  for (let i = 0; i <= 24; i++) { g.beginPath(); g.moveTo((1024/24)*i, 0); g.lineTo((1024/24)*i, 512); g.stroke(); }
+  // rough continent blobs (dark landmass)
+  g.fillStyle = 'rgba(9,30,64,.9)';
+  const land = [[90,120,300,120],[430,90,260,110],[620,80,300,120],[120,250,300,130],[430,240,260,120],[760,190,200,90],[520,300,180,60]];
+  land.forEach(([x,y,w,h]) => { g.beginPath(); g.ellipse(x+(w/2), y+(h/2), w/2, h/2, 0, 0, Math.PI*2); g.fill(); });
+  // city-glow specks (night lights)
+  for (let i = 0; i < 900; i++) {
+    const x = Math.random()*1024, y = Math.random()*512;
+    const insideLand = land.some(([lx,ly,lw,lh]) =>
+      x > lx && x < lx+lw && y > ly && y < ly+lh);
+    if (insideLand) {
+      g.fillStyle = `rgba(64,220,180,${0.35+Math.random()*0.5})`;
+      const s = 1 + Math.random()*2.2;
+      g.beginPath(); g.arc(x, y, s, 0, Math.PI*2); g.fill();
+    }
+  }
+  // broad night-lights wash wherever land is present
+  g.globalCompositeOperation = 'lighter';
+  g.fillStyle = 'rgba(20,60,120,.18)';
+  land.forEach(([x,y,w,h]) => { g.beginPath(); g.ellipse(x+(w/2), y+(h/2), (w/2)*1.3, (h/2)*1.4, 0, 0, Math.PI*2); g.fill(); });
+  return c;
+}
+const fallbackTex = new THREE.CanvasTexture(makeEarthTexture());
+
 const loader = new THREE.TextureLoader();
 const earthMat = new THREE.MeshPhongMaterial({
-  map: loader.load('https://unpkg.com/three-globe/example/img/earth-dark.jpg'),
+  map: fallbackTex,
   emissive: new THREE.Color(0x0a1a33),
   emissiveIntensity: 0.65,
   specular: new THREE.Color(0x1b3355),
@@ -119,6 +154,20 @@ const earthMat = new THREE.MeshPhongMaterial({
 });
 const earth = new THREE.Mesh(new THREE.SphereGeometry(R0, 64, 64), earthMat);
 scene.add(earth);
+
+// Upgrade to the NASA night-lights texture when the CDN image arrives (CORS
+// loads asynchronously). On failure we keep the procedural fallback so the
+// planet is never blank.
+loader.load(
+  'https://unpkg.com/three-globe/example/img/earth-dark.jpg',
+  (tex) => {
+    earthMat.map = tex;
+    earthMat.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    earthMat.needsUpdate = true;
+  },
+  undefined,
+  () => { /* keep fallback */ }
+);
 
 // clouds band for motion texture (subtle)
 const cloudTex = loader.load('https://unpkg.com/three-globe/example/img/clouds.png');
