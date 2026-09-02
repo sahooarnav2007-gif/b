@@ -497,14 +497,21 @@ def summarize(timeline):
     }
 
 
-def correlate_incidents(timeline, gap=2):
+def correlate_incidents(timeline, gap=2, flows_per_window=WINDOW_SIZE):
     """Group consecutive alert windows into distinct security incidents.
 
     A new incident starts when there are `gap` or more consecutive non-alert
     windows since the last alert (or the family changes). Each incident reports
-    its first/last window, peak risk, dominant family, and MITRE stage — turning
-    a stream of discrete alerts into a story analysts can act on.
+    its first/last window, duration, peak risk, a composite severity score,
+    dominant family, and MITRE stage — turning a stream of discrete alerts into
+    a prioritized story analysts can act on.
     """
+    # Family criticality weight (0..1) — drives severity alongside risk/duration.
+    _fam_weight = {
+        "dos": 1.0, "ddos": 1.0, "botnet": 0.9, "heartbleed": 0.85,
+        "port_scan": 0.7, "web_attack": 0.75, "infiltration": 0.8,
+        "brute_force": 0.85, "xss": 0.7, "sql_injection": 0.85,
+    }
     flagged = sorted(
         [t for t in timeline if t.get("predicted_alert")],
         key=lambda t: t["window_id"])
@@ -523,6 +530,7 @@ def correlate_incidents(timeline, gap=2):
             continue
         if cur is not None:
             incidents.append(cur)
+        fam = str(t.get("attack_family", "none")).lower()
         cur = {
             "incident_id": len(incidents) + 1,
             "first_window": wid,
@@ -531,10 +539,31 @@ def correlate_incidents(timeline, gap=2):
             "family": t.get("attack_family", "none"),
             "stage": t.get("mitre_stage", "-"),
             "windows": 1,
+            "family_weight": _fam_weight.get(fam, 0.6),
         }
         prev_alert = wid
     if cur:
         incidents.append(cur)
+
+    # Post-pass: compute duration + composite severity (0..1) per incident.
+    for inc in incidents:
+        inc["duration_windows"] = inc["last_window"] - inc["first_window"] + 1
+        inc["estimated_flows"] = inc["duration_windows"] * flows_per_window
+        peak = float(inc["peak_risk"])
+        famw = float(inc.get("family_weight", 0.6))
+        # Duration factor: longer campaigns are more disruptive (log2 scale).
+        dur = inc["duration_windows"]
+        dur_f = min(1.0, max(0.0, (dur - 1) / 31.0))
+        sev = 0.55 * peak + 0.25 * famw + 0.20 * dur_f
+        inc["severity"] = round(min(1.0, sev), 3)
+        if inc["severity"] >= 0.75:
+            inc["priority"] = "CRITICAL"
+        elif inc["severity"] >= 0.5:
+            inc["priority"] = "HIGH"
+        elif inc["severity"] >= 0.25:
+            inc["priority"] = "MEDIUM"
+        else:
+            inc["priority"] = "LOW"
     return incidents
 
 

@@ -341,8 +341,8 @@ pre, code, [class*="codeCell"] { font-family:var(--mono); }
     font-size:.68rem; letter-spacing:.05em; }
 
 /* incidents block */
-.incident-window { max-width:680px; overflow:hidden; }
-.incident-row { display:grid; grid-template-columns: 46px 1fr 1fr 1.4fr 64px; gap:14px;
+.incident-window { max-width:740px; overflow:hidden; }
+.incident-row { display:grid; grid-template-columns: 46px 1fr 1fr 1.4fr 84px 64px; gap:14px;
     align-items:center; padding:9px 14px; }
 .incident-row:not(:last-child) { border-bottom:1px dashed rgba(148,163,184,.12); }
 .incident-row .iid { width:26px; height:26px; border-radius:50%; display:flex; align-items:center;
@@ -353,8 +353,26 @@ pre, code, [class*="codeCell"] { font-family:var(--mono); }
 .incident-row .iwin b { color:#f87171; }
 .incident-row .ifam { font-family:var(--mono); text-transform:uppercase; font-size:.7rem;
     letter-spacing:.06em; color:#22d3ee; }
-.incident-row .istage { font-size:.72rem; color:#94a3b8; }
+.incident-row .istage { font-size:.72rem; color:#94a3b8; white-space:nowrap; overflow:hidden;
+    text-overflow:ellipsis; }
+.incident-row .ipri { font-family:var(--mono); font-size:.62rem; letter-spacing:.08em;
+    padding:2px 8px; border-radius:20px; text-align:center; text-transform:uppercase; }
+.incident-row .ipri.pri-critical { color:#ffd7d7; background:rgba(239,68,68,.18); border:1px solid rgba(239,68,68,.4); }
+.incident-row .ipri.pri-high { color:#fed7aa; background:rgba(249,115,22,.16); border:1px solid rgba(249,115,22,.4); }
+.incident-row .ipri.pri-medium { color:#fde68a; background:rgba(251,191,36,.14); border:1px solid rgba(251,191,36,.35); }
+.incident-row .ipri.pri-low { color:#bbf7d0; background:rgba(74,222,128,.12); border:1px solid rgba(74,222,128,.35); }
 .incident-row .ipeak { font-family:var(--mono); font-weight:800; color:#fbbf24; text-align:right; }
+
+/* kill chain */
+.killchain { display:flex; align-items:center; flex-wrap:nowrap; overflow-x:auto;
+    gap:2px; padding-bottom:4px; }
+.killchain .kn { flex:none; font-size:.68rem; letter-spacing:.05em; padding:6px 10px;
+    border-radius:8px; border:1px solid #24324d; color:#7d8db0; white-space:nowrap; }
+.killchain .kn-done { color:#64748b; background:rgba(30,41,59,.6); }
+.killchain .kn-cur { color:#0b1220; font-weight:800; border-color:#22d3ee;
+    background:linear-gradient(135deg,#22d3ee,#3b82f6);
+    box-shadow:0 0 18px rgba(34,211,238,.55); }
+.killchain .kchev { color:#3b82f6; font-size:.9rem; flex:none; padding:0 2px; }
 
 /* neutral severity badge */
 .badge.none { background:rgba(148,163,184,.14); color:#94a3b8; border:1px solid rgba(148,163,184,.4); }
@@ -723,8 +741,11 @@ _particles = "".join(
 _ticker_entries = [
     ("SCAN", "window #187 · risk 0.847", "tokr"),
     ("FORECAST", "updated · 358 alert windows", "tok"),
+    ("INCIDENT", "2 correlated · 1 CRITICAL (357w DDoS)", "tokr"),
+    ("SEVERITY", "DDoS campaign ~178.5K flows", "tok"),
     ("LEDGER", "sealed block #42 · SHA256 9f3a...", "tokb"),
     ("AUTO-PLAYBOOK", "iptables draft for DDoS", "tokw"),
+    ("KILL-CHAIN", "Impact stage (TA0040) active", "tokw"),
     ("NOVELTY", "callout · window #203 · 96th pct", "toki"),
     ("ENGINE", "RandomForest @ 76-dim rolling", "tokb"),
     ("HONEYPOT", "decoy :8080 armed", "tok"),

@@ -375,12 +375,24 @@ try:
             f"(<b>{i['windows']}</b>)</span>"
             f"<span class='ifam'>{html.escape(str(i['family']))}</span>"
             f"<span class='istage'>{html.escape(str(i['stage']))}</span>"
+            f"<span class='ipri pri-{i.get('priority','MEDIUM').lower()}'>{i.get('priority','?')}</span>"
             f"<span class='ipeak'>{i['peak_risk']:.3f}</span>"
             f"</div>" for i in incidents)
         st.markdown(f"<div class='incident-window glass'>{ic}</div>",
                     unsafe_allow_html=True)
         st.caption("Alert windows grouped into incidents (gap ≤ 2 wins and same "
-                   "family). Shows attack onset, duration, peak risk and MITRE stage.")
+                   "family). Shows attack onset, duration, peak risk, MITRE stage "
+                   "and a composite severity/priority score.")
+        st.download_button(
+            "⬇ Export incident timeline (JSON)",
+            data=json.dumps(incidents, indent=2),
+            file_name="netsight_incidents.json",
+            mime="application/json",
+            help="Download the correlated incident summary as structured JSON "
+                 "for import into a SIEM or case-management tool.")
+    else:
+        st.caption("No alert windows to correlate into incidents at the current "
+                   "threshold.")
 except Exception:
     pass
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -882,6 +894,35 @@ with tab4:
             st.code(rules["windows_netsh"], language="bat")
         with rc3:
             st.code(rules["cisco_acl"], language="text")
+
+        # ---- MITRE kill-chain position ----
+        kc_stages = ["Recon", "Weaponize", "Deliver", "Exploit",
+                     "C&C", "Actions", "Impact"]
+        cur_stage = str(row["mitre_stage"])
+        try:
+            cur_idx = next(i for i, s in enumerate(kc_stages)
+                           if s.lower()[:3] in cur_stage.lower() or
+                           cur_stage.lower()[:3] in s.lower())
+        except StopIteration:
+            cur_idx = None
+        kc_html = ("<div style='font-size:.72rem;letter-spacing:.1em;color:var(--dim);"
+                   "text-transform:uppercase;margin:6px 0 8px'>MITRE kill-chain "
+                   "position</div><div class='killchain'>")
+        for i, s in enumerate(kc_stages):
+            cls = "kn"
+            if cur_idx is not None:
+                if i < cur_idx: cls = "kn-done"
+                elif i == cur_idx: cls = "kn-cur"
+            kc_html += (f"<div class='{cls}'><span>{s}</span></div>"
+                        f"<div class='kchev'>{'›' if i < len(kc_stages)-1 else ''}</div>")
+        kc_html += "</div>"
+        if cur_idx is not None and cur_idx < len(kc_stages) - 1:
+            kc_html += (f"<div style='color:var(--muted);font-size:.78rem;margin-top:6px'>"
+                        f"Predicted next stage: <b style='color:#60a5fa'>"
+                        f"{kc_stages[cur_idx+1]}</b> — "
+                        f"{defense.get_mitre_intel(fam)['recommended_action']}</div>")
+        st.markdown(f"<div class='glass' style='padding:16px 20px;margin-top:8px'>{kc_html}</div>",
+                    unsafe_allow_html=True)
         st.markdown('<div class="sec-title"><h3>Dynamic decoy honeypot</h3></div>',
                     unsafe_allow_html=True)
         if st.button("🪤 Trigger honeypot redirection demo", type="primary"):
