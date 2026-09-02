@@ -304,19 +304,29 @@ st.caption("Risk signal across the timeline — red dots mark alert windows. "
            "Full interactive view in the 🔭 Forecaster tab.")
 
 # ================= DETECTION QUALITY (vs ground truth) ====================
+# Exclude engine warm-up rows (no prediction was made) from the confusion
+# count, and skip entirely when ground-truth labels are unavailable.
+has_truth = "gt_family" in tl.columns and tl["gt_family"].notna().any()
 try:
-    gt_attack = tl["gt_family"].map(lambda g: str(g).strip().lower() != "none")
-    pred_alert = tl["predicted_alert"].astype(bool)
-    tp = int((gt_attack & pred_alert).sum())
-    fp = int((~gt_attack & pred_alert).sum())
-    fn = int((gt_attack & ~pred_alert).sum())
-    precision = tp / (tp + fp) if (tp + fp) else 0.0
-    recall = tp / (tp + fn) if (tp + fn) else 0.0
-    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
-    true_neg = len(tl) - tp - fp - fn
-    has_truth = bool(gt_attack.any() or (~gt_attack).all() and "gt_family" in tl.columns)
+    if "warming_up" in tl.columns:
+        scored = tl[~tl["warming_up"].astype(bool)].copy()
+    else:
+        scored = tl.copy()
+    if has_truth and len(scored):
+        gt_attack = scored["gt_family"].map(lambda g: str(g).strip().lower() != "none")
+        pred_alert = scored["predicted_alert"].astype(bool)
+        tp = int((gt_attack & pred_alert).sum())
+        fp = int((~gt_attack & pred_alert).sum())
+        fn = int((gt_attack & ~pred_alert).sum())
+        precision = tp / (tp + fp) if (tp + fp) else 0.0
+        recall = tp / (tp + fn) if (tp + fn) else 0.0
+        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+        true_neg = int(len(scored) - tp - fp - fn)
+        scored_n = len(scored)
+    else:
+        tp = fp = fn = 0; precision = recall = f1 = 0.0; true_neg = 0; scored_n = 0
 except Exception:
-    tp = fp = fn = 0; precision = recall = f1 = 0.0; has_truth = False
+    tp = fp = fn = 0; precision = recall = f1 = 0.0; true_neg = 0; scored_n = 0
 
 if has_truth:
     st.markdown(f"""

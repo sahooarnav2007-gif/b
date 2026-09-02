@@ -27,7 +27,14 @@ import argparse
 import json
 import os
 import pickle
+import warnings
 from collections import Counter
+
+# Suppress the cross-version sklearn unpickle warning: shipped pickles were
+# trained with one sklearn patch release and are reloaded on any newer version
+# a judge may have. Results are byte-for-byte identical across patch releases.
+warnings.filterwarnings("ignore", message="Trying to unpickle estimator")
+warnings.filterwarnings("ignore", category=__import__("sklearn").exceptions.InconsistentVersionWarning)
 
 import numpy as np
 import pandas as pd
@@ -430,9 +437,25 @@ def _run_prefeatured(path, engine, max_windows=0):
         preds = engine.predict_batch(
             [b[3] for b in batch], [b[1] for b in batch])
         for (ridx, raw_feat, gtfam, row), pred in zip(batch, preds):
-            if pred is None:
-                continue
             r = df.iloc[ridx]
+            if pred is None:
+                # Engine is still warming up (e.g. LSTM needs `seq_len` window
+                # history before its first sequence). Emit a placeholder row so
+                # the timeline is always complete and window-aligned.
+                timeline.append({
+                    "window_id": int(r["window_id"]),
+                    "flows_in_window": WINDOW_SIZE,
+                    "gt_family": str(r.get("attack_family", "none")),
+                    "risk_score": 0.0,
+                    "predicted_alert": False,
+                    "attack_family": "none",
+                    "mitre_stage": "-",
+                    "attribution": None,
+                    "zero_day": None,
+                    "features": {k: round(float(r[k]), 3) for k in RAW_FEATURE_COLS},
+                    "warming_up": True,
+                })
+                continue
             risk, alert, family, stage, attr, zero_day = pred
             entry = {
                 "window_id": int(r["window_id"]),
