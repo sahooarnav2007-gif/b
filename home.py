@@ -65,18 +65,15 @@ GLOBE_HTML = """
     <div class="legend"><span class="arc"></span>forecasted attack path</div>
   </div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
+  <!-- Vendored from /app/static (served same-origin by Streamlit) so the globe
+       never depends on CDN availability or sandboxed ES-module fetching. -->
+  <script src="/app/static/three/three.min.js"></script>
+  <script src="/app/static/three/OrbitControls.js"></script>
 
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+<script>
+'script' + ''; // no-op marker keeps strict tooling calm
+const THREE = window.THREE;
+const OrbitControls = THREE.OrbitControls;
 
 const stage = document.getElementById('stage');
 const R0 = 2.32;
