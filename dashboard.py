@@ -223,6 +223,21 @@ if "zero_day" in tl.columns:
 flagged = tl[tl["predicted_alert"]]
 src_label = f"Demo:{chosen}" if demo_file else (f"Upload:{uploaded.name}" if uploaded else "—")
 
+# lead-time: windows from earliest real attack onset to the model's first alert
+first_alert_win = int(flagged["window_id"].min()) if len(flagged) else None
+lead_str = "—"
+if len(flagged):
+    if "gt_family" in tl.columns:
+        g_att = tl[tl["gt_family"].map(lambda g: str(g).strip().lower() != "none")]
+        if len(g_att):
+            onset = int(g_att["window_id"].min())
+            lead_wins = max(0, first_alert_win - onset)
+            lead_str = f"{lead_wins}w{' on-time' if lead_wins == 0 else ''}"
+        else:
+            lead_str = f"w{first_alert_win}"
+    else:
+        lead_str = f"w{first_alert_win}"
+
 # ============================ CONTEXT BAR ==================================
 st.markdown(
     f"<div class='ctxbar'>"
@@ -235,6 +250,10 @@ st.markdown(
     f"<span class='k'>Windows</span> <span class='v'>{summary['windows_processed']}</span>"
     f"<span class='sep'>·</span>"
     f"<span class='k'>Alerts</span> <span class='v'>{summary['flagged_windows']}</span>"
+    f"<span class='sep'>·</span>"
+    f"<span class='k'>First</span> <span class='v'>w{first_alert_win}</span>"
+    f"<span class='sep'>·</span>"
+    f"<span class='k'>Lead</span> <span class='v'>{lead_str}</span>"
     f"<span class='sep'>·</span>"
     f"<span class='k'>⏱</span> <span class='v'>{elapsed:.1f}s</span>"
     f"</div>", unsafe_allow_html=True)
@@ -270,6 +289,52 @@ st.altair_chart(spark.properties(height=64), width="stretch")
 st.caption("Risk signal across the timeline — red dots mark alert windows. "
            "Full interactive view in the 🔭 Forecaster tab.")
 
+# ================= DETECTION QUALITY (vs ground truth) ====================
+try:
+    gt_attack = tl["gt_family"].map(lambda g: str(g).strip().lower() != "none")
+    pred_alert = tl["predicted_alert"].astype(bool)
+    tp = int((gt_attack & pred_alert).sum())
+    fp = int((~gt_attack & pred_alert).sum())
+    fn = int((gt_attack & ~pred_alert).sum())
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+    true_neg = len(tl) - tp - fp - fn
+    has_truth = bool(gt_attack.any() or (~gt_attack).all() and "gt_family" in tl.columns)
+except Exception:
+    tp = fp = fn = 0; precision = recall = f1 = 0.0; has_truth = False
+
+if has_truth:
+    st.markdown(f"""
+    <div style="font-size:.78rem;letter-spacing:.06em;color:var(--dim);margin:6px 0 4px;
+        text-transform:uppercase">Detection quality · vs ground-truth labels</div>
+    <div class="metric-grid glass">
+      <div class="mq"><span class="mile">Precision</span><span class="miv g">{precision:.2%}</span></div>
+      <div class="mq"><span class="mile">Recall</span><span class="miv c">{recall:.2%}</span></div>
+      <div class="mq"><span class="mile">F1</span><span class="miv v">{f1:.2%}</span></div>
+      <div class="mq"><span class="mile">TP</span><span class="miv g">{tp}</span></div>
+      <div class="mq"><span class="mile">FP</span><span class="miv r">{fp}</span></div>
+      <div class="mq"><span class="mile">FN</span><span class="miv o">{fn}</span></div>
+    </div>""", unsafe_allow_html=True)
+
+    if len(flagged):
+        st.markdown(f"""
+        <div style="font-size:.78rem;letter-spacing:.06em;color:var(--dim);margin:10px 0 4px;
+            text-transform:uppercase">Earliest warnings · model fired first</div>
+        <div class="feed-window">
+        """, unsafe_allow_html=True)
+        for _, r in list(flagged.head(6).iterrows()):
+            fcls, _ = risk_badge(r["risk_score"])
+            right = "hit" if str(r.get("gt_family", "")).strip().lower() != "none" else "miss"
+            rcolor = "#4ade80" if right == "hit" else "#f87171"
+            st.markdown(
+                f"<div class='feed-row'><span class='fw'>{int(r['window_id'])}</span>"
+                f"<span class='fam'>{html.escape(str(r['attack_family']))}</span>"
+                f"<span class='risk'>{r['risk_score']:.3f}</span>"
+                f"<span class='truth' style='color:{rcolor}'>{right}</span></div>",
+                unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
 # ============================ TABS =========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🔭 Forecaster", "🔬 Explainability", "🧪 What-If Lab",
@@ -291,6 +356,31 @@ with tab1:
     st.markdown('<div class="sec-title"><h3>Forecast timeline</h3></div>',
                 unsafe_allow_html=True)
     st.altair_chart(timeline_chart(tl, flagged, threshold), width="stretch")
+
+    # ---- threat-matrix heatmap: attack family x risk across windows ----
+    if "attack_family" in tl.columns and len(tl):
+        fam = tl["attack_family"].fillna("none").astype(str)
+        fam = fam.map(lambda x: "benign" if x == "none" else x)
+        try:
+            hdf = tl.assign(_fam=fam)
+            heat = alt.Chart(hdf).mark_rect().encode(
+                x=alt.X("window_id:O", title="Window"),
+                y=alt.Y("_fam:N", title="attack family"),
+                color=alt.Color("risk_score:Q",
+                                scale=alt.Scale(scheme="blues", domain=[0.2, 1.0]),
+                                title="risk"),
+                tooltip=[alt.Tooltip("window_id:O", title="window"),
+                         alt.Tooltip("_fam:N", title="family"),
+                         alt.Tooltip("risk_score:Q", title="risk", format=".3f"),
+                         alt.Tooltip("mitre_stage:N", title="MITRE")],
+            ).properties(height=200)
+            st.markdown('<div class="sec-title"><h3>Threat matrix</h3></div>',
+                        unsafe_allow_html=True)
+            st.altair_chart(heat, width="stretch")
+            st.caption("Per-window risk as a heatmap by predicted attack family — "
+                       "visualizes which families are active and when.")
+        except Exception:
+            pass
 
     if len(flagged) == 0:
         st.success("No alerts at the current threshold.")
