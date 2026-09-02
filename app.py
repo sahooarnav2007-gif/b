@@ -597,37 +597,16 @@ html { scroll-behavior: smooth; }
     background:linear-gradient(90deg, transparent, rgba(59,130,246,.4), transparent); }
 
 /* ============================================================
-   CURSOR-REACTIVE + MOTION LAYER (Layers 1,2,4,5,6)
+   CURSOR-REACTIVE + MOTION LAYER (Layer 1,4,5,6)
    ============================================================ */
-/* Layer 1 — cursor-following ambient glow (enabled only when JS runs) */
-#cursor-glow {
-    position: fixed; top: 0; left: 0; width: 560px; height: 560px;
-    border-radius: 50%; pointer-events: none; z-index: 0;
-    background: radial-gradient(circle, rgba(59,130,246,.14), rgba(34,211,238,.05) 45%, transparent 70%);
-    transform: translate(-50%, -50%);
-    mix-blend-mode: screen;
-    opacity: 0; transition: opacity .4s ease;
-}
-body.js-on #cursor-glow { opacity: 1; }
-/* pure-CSS fallback glow: gentle breathing ambient light, no cursor tracking */
-body:not(.js-on)::after {
+/* Layer 1 — ambient breathing light (pure CSS; no JS needed) */
+body::after {
     content:""; position:fixed; top:-140px; right:-140px; width:560px; height:560px;
     border-radius:50%; pointer-events:none; z-index:0;
     background: radial-gradient(circle, rgba(59,130,246,.10), transparent 65%);
     animation: respire 9s ease-in-out infinite alternate;
 }
 @keyframes respire { from { opacity:.35; transform: scale(1);} to { opacity:.75; transform: scale(1.15);} }
-
-/* Layer 4 — scroll progress bar (fills only when JS runs) */
-#scroll-prog {
-    position: fixed; top: 0; left: 0; height: 3px; z-index: 999;
-    width: 0;
-    background: linear-gradient(90deg, #22d3ee, #3b82f6, #818cf8);
-    box-shadow: 0 0 10px rgba(34,211,238,.6);
-    pointer-events: none;
-    opacity: 0; transition: opacity .3s ease;
-}
-body.js-on #scroll-prog { width: var(--scroll-pct, 0%); opacity: 1; }
 
 /* Layer 5 — hero title breathing glow */
 .hero h1 {
@@ -651,9 +630,8 @@ body.js-on #scroll-prog { width: var(--scroll-pct, 0%); opacity: 1; }
     to   { transform: translate(-50px,34px) scale(1.12); }
 }
 
-/* Layer 2 — 3D perspective tilt on glass cards.
-   transform is set per-element by JS handlers; transition lives here. */
-.glass.hover { transform-style: preserve-3d; will-change: transform;
+/* Layer 2 — 3D perspective lift on glass hover (pure CSS) */
+.glass.hover { will-change: transform;
     transition: transform .18s ease-out, box-shadow .25s ease, border-color .25s ease; }
 
 footer { visibility: hidden; }
@@ -684,8 +662,6 @@ _ticker_entries = [
 st.markdown(
     f"""
 <div id="bgfx" aria-hidden="true">{_particles}</div>
-<div id="cursor-glow" aria-hidden="true"></div>
-<div id="scroll-prog" aria-hidden="true"></div>
 <div id="soc-ticker" aria-hidden="true">
   <div class="tk-label"><i></i>NETSIGHT&nbsp;LIVE</div>
   <div class="tk-track">
@@ -695,111 +671,6 @@ st.markdown(
     </div>
   </div>
 </div>
-<script>
-(function () {{
-  try {{ document.body.classList.add('js-on'); }} catch(e) {{}}
-  var glow = document.getElementById('cursor-glow');
-  var prog = document.getElementById('scroll-prog');
-  var root = document.documentElement;
-
-  /* Layer 1 — cursor glow follows mouse */
-  var raf = null;
-  function move(e) {{
-    if (raf) return;
-    raf = requestAnimationFrame(function () {{
-      raf = null;
-      var mx = e.clientX, my = e.clientY;
-      if (glow) {{ glow.style.top = my + 'px'; glow.style.left = mx + 'px'; }}
-      root.style.setProperty('--mx', mx + 'px');
-      root.style.setProperty('--my', my + 'px');
-    }});
-  }}
-  window.addEventListener('mousemove', move, {{ passive: true }});
-
-  /* Layer 4 — scroll progress bar */
-  function scrollP() {{
-    var st = window.scrollY || root.scrollTop || 0;
-    var h = (root.scrollHeight || document.body.scrollHeight) - (root.clientHeight || window.innerHeight);
-    var pct = h > 0 ? (st / h) * 100 : 0;
-    root.style.setProperty('--scroll-pct', pct + '%');
-    if (prog) prog.style.width = pct + '%';
-  }}
-  window.addEventListener('scroll', scrollP, {{ passive: true }});
-
-  /* Layer 2 — 3D tilt on .glass.hover cards */
-  var tiltTargets = null;
-  function collectTilt() {{
-    tiltTargets = document.querySelectorAll('.glass.hover');
-  }}
-  if (window.MutationObserver) {{
-    var mo = new MutationObserver(function () {{ collectTilt(); }});
-    mo.observe(document.body, {{ childList: true, subtree: true }});
-  }}
-  document.addEventListener('mousemove', function (e) {{
-    if (!tiltTargets) collectTilt();
-    var len = tiltTargets.length;
-    for (var i = 0; i < len; i++) {{
-      var el = tiltTargets[i];
-      if (e.target === el || el.contains(e.target)) {{
-        var r = el.getBoundingClientRect();
-        if (r.width === 0 || r.height === 0) continue;
-        var px = (e.clientX - r.left) / r.width - 0.5;
-        var py = (e.clientY - r.top) / r.height - 0.5;
-        el.style.transform = 'perspective(700px) rotateX(' + (-py * 8).toFixed(2) + 'deg) rotateY(' + (px * 10).toFixed(2) + 'deg) translateY(-3px)';
-      }}
-    }}
-  }});
-  document.addEventListener('mouseleave', function (e) {{
-    if (!tiltTargets) return;
-    for (var i = 0; i < tiltTargets.length; i++) {{
-      tiltTargets[i].style.transform = '';
-    }}
-  }});
-
-  /* Layer 3 — number counters on stat rings */
-  function animateCount(el) {{
-    var txt = el.textContent.trim().replace(/,$/, '');
-    var val = parseFloat(txt);
-    if (isNaN(val) || txt === '—' || val === 0) return;
-    var start = 0, dur = 1200, t0 = null;
-    var decimals = Math.max(0, (txt.split('.')[1] || '').length);
-    function easeOutCubic(x) {{ return 1 - Math.pow(1 - x, 3); }}
-    function step(ts) {{
-      if (!t0) t0 = ts;
-      var p = Math.min(1, (ts - t0) / dur);
-      var cur = start + (val - start) * easeOutCubic(p);
-      var out;
-      if (decimals > 0) out = cur.toFixed(decimals);
-      else out = String(Math.round(cur));
-      if (el.hasAttribute('data-orig')) var keep = el.getAttribute('data-orig');
-      el.innerHTML = out;
-      if (p < 1) requestAnimationFrame(step);
-      else el.innerHTML = txt;
-    }}
-    requestAnimationFrame(step);
-  }}
-  function initCounters() {{
-    var els = document.querySelectorAll('.stat.glass.ring .n');
-    for (var i = 0; i < els.length; i++) {{ animateCount(els[i]); }}
-  }}
-  function scheduleCounters() {{
-    var els = document.querySelectorAll('.stat.glass.ring .n');
-    if (els.length) initCounters();
-  }}
-  if (window.MutationObserver) {{
-    var mo2 = new MutationObserver(function (muts) {{
-      var changed = false;
-      for (var m = 0; m < muts.length; m++) {{
-        if (muts[m].addedNodes.length) {{ changed = true; break; }}
-      }}
-      if (changed) scheduleCounters();
-    }});
-    mo2.observe(document.body, {{ childList: true, subtree: true }});
-  }}
-  setTimeout(scheduleCounters, 300);
-  setTimeout(scheduleCounters, 900);
-}}());
-</script>
 """,
     unsafe_allow_html=True,
 )
