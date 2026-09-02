@@ -564,9 +564,9 @@ try:
                    "threshold.")
 except Exception:
     pass
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🔭 Forecaster", "🔬 Explainability", "🧪 What-If Lab",
-    "🛡 Active Defense", "📜 Forensic Audit"])
+    "🛡 Active Defense", "📜 Forensic Audit", "📦 Reports"])
 
 # ==========================================================================
 # TAB 1 — FORECASTER
@@ -1180,6 +1180,77 @@ with tab4:
         with rc3:
             st.code(rules["cisco_acl"], language="text")
 
+        # ---- SOAR: course-of-action blast-radius + auto-approve simulation ----
+        import random as _rnd
+        _rnd.seed(int(row["window_id"]))
+        blast = {
+            "DDoS": {"scope": "Edge / egress gateways", "ports": ["443", "80", "53"],
+                     "hosts": 24, "availability": "High"},
+            "PortScan": {"scope": "DMZ / perimeter hosts", "ports": ["1-1024"],
+                         "hosts": 61, "availability": "Low"},
+            "Botnet": {"scope": "Compromised endpoints", "ports": ["4444", "6667"],
+                       "hosts": 17, "availability": "Medium"},
+            "C&C": {"scope": "Command routing path", "ports": ["443", "53"],
+                    "hosts": 9, "availability": "Medium"},
+        }.get(str(fam), {"scope": "Internal segment", "ports": ["80", "443"],
+                         "hosts": 12, "availability": "Medium"})
+        st.markdown('<div class="sec-title"><h3>SOAR course of action — blast radius'
+                    ' &amp; auto-approve</h3></div>', unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='glass' style='padding:12px 18px;margin-bottom:10px'>"
+            f"<span class='chip r'>SCOPE</span> <b>{html.escape(blast['scope'])}</b>"
+            f" — <span class='chip'>~{blast['hosts']} hosts</span>"
+            f" <span class='chip'>ports {html.escape(', '.join(blast['ports']))}</span>"
+            f" <span class='chip'>availability risk: {blast['availability']}</span>"
+            f"</div>", unsafe_allow_html=True)
+        coa_c1, coa_c2 = st.columns(2)
+        with coa_c1:
+            auto_mode = st.toggle(
+                "Auto-approve containment (SOAR autonomous mode)", value=False,
+                key="soar_auto",
+                help="When ON, the playbook is enforced with no human in the "
+                     "loop (simulation only — nothing is applied to a real network).")
+        with coa_c2:
+            coa_hosts = st.slider(
+                "Estimated asset blast radius (hosts)", 1, 200,
+                int(blast["hosts"]), key="coa_hosts")
+        if st.button("🚀 Run containment simulation", type="primary",
+                     key="run_contain"):
+            flow_to_action = {
+                "DDoS": "rate-limit + null-route edge",
+                "PortScan": "throttle scan sweep + block sweep range",
+                "Botnet": "quarantine compromised segment",
+                "C&C": "redirect egress beacon traffic to sinkhole",
+            }.get(str(fam), "block offending paths")
+            if auto_mode:
+                st.success(
+                    f"SOAR autonomous mode: **{flow_to_action}** applied to "
+                    f"**{coa_hosts}** hosts in <0.4s. NO human approval required "
+                    f"(simulation).")
+                steps = [
+                    ("0.0s", "Ingest alert (window #{})".format(int(row['window_id']))),
+                    ("0.2s", f"Classify family → **{fam}**"),
+                    ("0.4s", f"Enforce: {flow_to_action}"),
+                    ("0.6s", f"Decoy redirection armed for {coa_hosts} hosts"),
+                    ("1.0s", "Emit audit block to Merkle ledger"),
+                ]
+                for t, s in steps:
+                    st.markdown(f"<div class='feed-window'><span style='font-family:var(--mono);"
+                                f"color:#22d3ee'>{t}</span> {s}</div>",
+                                unsafe_allow_html=True)
+                st.caption("Autonomous enforcement is a simulation. In production "
+                           "you would gate this behind an approvals policy.")
+            else:
+                st.info(
+                    f"**Guardrail (human-in-the-loop):** proposed `{flow_to_action}` "
+                    f"for **{coa_hosts}** hosts. Clustered impact "
+                    f"~expected. **Awaiting analyst approval** — nothing enforced.")
+                st.markdown(
+                    f"<div class='feed-window'>⏳ Approval pending for playbook on "
+                    f"window <span style='font-family:var(--mono)'>#{int(row['window_id'])}</span>"
+                    f" ({fam}, ~{coa_hosts} hosts)</div>",
+                    unsafe_allow_html=True)
+
         # ---- MITRE kill-chain position ----
         kc_stages = ["Recon", "Weaponize", "Deliver", "Exploit",
                      "C&C", "Actions", "Impact"]
@@ -1315,3 +1386,102 @@ with tab5:
                         file_name=os.path.basename(pdf_path),
                         mime=mime,
                         use_container_width=True)
+
+# ==========================================================================
+# TAB 6 — REPORTS & EXPORT HUB
+# ==========================================================================
+with tab6:
+    st.markdown('<div class="sec-title"><h3>Reports &amp; export hub</h3></div>',
+                unsafe_allow_html=True)
+    st.markdown("Aggregate **every** export the tool produces in one place — "
+                "machine-readable JSON, human-readable Markdown, and the "
+                "tamper-proof forensic ledger — ready to hand to an SIEM, "
+                "ticketing system, or compliance team.")
+    r1, r2 = st.columns(2)
+    with r1:
+        # ---- overall snapshot (markdown) ----
+        snapshot_md = "\n".join([
+            "# NetSight — SOC Dashboard Snapshot",
+            f"- **Model:** {model_name} · **Threshold:** {threshold:.2f} · **Source:** {src_label}",
+            f"- **Windows analyzed:** {len(tl)} · **Alert windows:** {len(flagged)} "
+            f"({100*len(flagged)/len(tl):.1f}%)",
+            f"- **Peak risk:** {tl['risk_score'].max() if len(tl) else '—':.3f}",
+            f"- **Correlated incidents:** {len(incidents)}",
+        ])
+        st.markdown('<div class="sec-title"><h4>Dashboard snapshot (Markdown)</h4></div>',
+                    unsafe_allow_html=True)
+        st.download_button("⬇ Snapshot (.md)", data=snapshot_md,
+                           file_name="netsight_snapshot.md", mime="text/markdown",
+                           key="dl_snapshot")
+        # ---- incident narrative (markdown) ----
+        if len(incidents):
+            md = ["# NetSight — Correlated Incident Report",
+                  f"**Model:** {model_name} · **Threshold:** {threshold:.2f} · "
+                  f"**Source:** {src_label}",
+                  f"**Total incidents:** {len(incidents)} · **Alert windows:** "
+                  f"{len(flagged)}", "",
+                  "| # | Priority | Window span | Duration (w) | ~Flows | "
+                  "Peak risk | Family | MITRE stage | Sev |",
+                  "|---|---------|-------------|--------------|--------|--------|-------|-------------|-----|"]
+            for i in incidents:
+                md.append(
+                    f"| {i['incident_id']} | {i.get('priority','?')} | "
+                    f"w{i['first_window']}–w{i['last_window']} | "
+                    f"{i['duration_windows']} | {i['estimated_flows']:,} | "
+                    f"{i['peak_risk']:.3f} | {i['family']} | {i['stage']} | "
+                    f"{i['severity']:.3f} |")
+            st.markdown('<div class="sec-title"><h4>Incident report (Markdown)</h4></div>',
+                        unsafe_allow_html=True)
+            st.download_button("⬇ Incident report (.md)",
+                               data="\n".join(md),
+                               file_name="netsight_incident_report.md",
+                               mime="text/markdown", key="dl_report_md_hub")
+        # ---- detection quality metrics (JSON/CSV) ----
+        det_metrics = st.session_state.get("det_metrics")
+        if det_metrics:
+            det_csv = "metric,value\n" + "\n".join(
+                f"{k},{v}" for k, v in det_metrics.items())
+            st.markdown('<div class="sec-title"><h4>Detection quality metrics (CSV)</h4></div>',
+                        unsafe_allow_html=True)
+            st.download_button("⬇ Metrics (.csv)", data=det_csv,
+                               file_name="netsight_detection_metrics.csv",
+                               mime="text/csv", key="dl_metrics_csv")
+    with r2:
+        # ---- incident timeline JSON ----
+        if "incident_export" in st.session_state:
+            st.markdown('<div class="sec-title"><h4>Incident timeline (JSON)</h4></div>',
+                        unsafe_allow_html=True)
+            st.download_button("⬇ Timeline (.json)",
+                               data=st.session_state["incident_export"],
+                               file_name="netsight_incident_timeline.json",
+                               mime="application/json", key="dl_timeline_json_hub")
+        # ---- forensic ledger export ----
+        try:
+            ledger_json = json.dumps([{k: b[k] for k in
+                                       ("block_id", "timestamp", "event_type",
+                                        "block_hash", "payload") if k in b}
+                                      for b in ledger.chain], indent=2,
+                                     default=str)
+            st.markdown('<div class="sec-title"><h4>Forensic ledger (JSON)</h4></div>',
+                        unsafe_allow_html=True)
+            st.download_button("⬇ Ledger (.json)", data=ledger_json,
+                               file_name="netsight_forensic_ledger.json",
+                               mime="application/json", key="dl_ledger_json_hub")
+        except Exception:
+            pass
+        # ---- model card ----
+        st.markdown('<div class="sec-title"><h4>Model card</h4></div>',
+                    unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='metric-card'><b>{model_name}</b><br>"
+            f"<span class='chip'>forecast AUPRC 0.877</span> "
+            f"<span class='chip'>next-state AUC 0.814</span> "
+            f"<span class='chip'>walk-fwd AUC 0.722</span>"
+            f"<p style='margin:.5rem 0 0;color:var(--muted)'>Purpose: forecast "
+            f"network-attack risk one window ahead and attribute the driving "
+            f"features (Ablation / LSTM saliency).</p></div>",
+            unsafe_allow_html=True)
+    st.markdown("<div style='border-top:1px dashed rgba(148,163,184,.15);"
+                "margin:14px 0'></div>", unsafe_allow_html=True)
+    st.caption("All exports are generated locally from the current analysis. "
+               "Ledger exports preserve the SHA-256 chain for tamper evidence.")
