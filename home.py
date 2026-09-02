@@ -256,9 +256,20 @@ wm_auc = world.get("lstm_next_attack_window_auc")
 pooled = wf.get("pooled_auc")
 
 
-def _stat(n, label, cls):
+def _stat(n, label, cls, frac=None):
     text = f"{n:g}" if isinstance(n, (int, float)) else "—"
-    return (f"<div class='stat glass'><div class='n {cls}'>{text}</div>"
+    if not isinstance(n, (int, float)) or n is None:
+        frac = 0
+    elif frac is None:
+        frac = max(0.0, min(1.0, float(n)))
+    off = round(188.5 * (1.0 - frac), 2)
+    return (f"<div class='stat glass ring'>"
+            f"<div class='rwrap'>"
+            f"<svg class='ring' viewBox='0 0 72 72' aria-hidden='true'>"
+            f"<circle class='rt' cx='36' cy='36' r='30'/>"
+            f"<circle class='rf {cls}' cx='36' cy='36' r='30' "
+            f"style='--off:{off}px'/></svg>"
+            f"<div class='n {cls}'>{text}</div></div>"
             f"<div class='l'>{label}</div></div>")
 
 
@@ -275,9 +286,10 @@ hc1, hc2 = st.columns([1.75, 1.0], gap="large")
 
 with hc1:
     st.markdown("""
-    <div class="hero glass">
+    <div class="hero glass anim-in">
       <div class="glass-inner">
-        <div class="kicker">AI-BASED NETWORK ATTACK FORECASTING · SIH26153</div>
+        <div class="kicker tt" style="--chars:46;--chars-c:46ch">AI-BASED NETWORK
+        ATTACK FORECASTING · SIH26153</div>
         <h1>🛰 NetSight</h1>
         <div class="sub">
           A fully offline SOC forecaster that forecasts <b>known attack
@@ -290,13 +302,14 @@ with hc1:
       </div>
     </div>
     """, unsafe_allow_html=True)
-    stat_html = ("<div class='stat-row glass'>" +
+    stat_html = ("<div class='stat-row glass anim-in d2'>" +
         (_stat(rf_auc, "cross-day AUC", "g") if rf_auc else "") +
         (_stat(wo_auc, "within-day AUC", "g") if wo_auc else "") +
         (_stat(auprc, "forecast AUPRC", "b") if auprc else "") +
         (_stat(wm_auc, "next-state AUC (LSTM)", "v") if wm_auc else "") +
         (_stat(pooled, "walk-forward AUC", "o") if pooled else "") +
-        (_stat(lead_med, "lead time (median w)", "b") if lead_med else "") +
+        (_stat(lead_med, "lead time (median w)", "b",
+               frac=min(1.0, lead_med / 12.0)) if lead_med else "") +
         "</div>")
     st.markdown(stat_html, unsafe_allow_html=True)
 
@@ -319,31 +332,31 @@ st.markdown("""
   <div class="pipe-link" style="left:calc(52% + 14px); right:calc(40% + 14px)"></div>
   <div class="pipe-link" style="left:calc(72% + 14px); right:calc(20% + 14px)"></div>
 
-  <div class="glass hover pipe-node">
+  <div class="glass hover pipe-node anim-in d1">
     <div class="ico">📥</div>
     <div class="name">Ingest</div>
     <div class="det">Flow CSV · PCAP · windows</div>
     <div class="tag"><i></i>RAW</div>
   </div>
-  <div class="glass hover pipe-node">
+  <div class="glass hover pipe-node anim-in d2">
     <div class="ico">🧬</div>
     <div class="name">Feature</div>
     <div class="det">76-dim rolling window</div>
     <div class="tag"><i></i>10 RAW + STATS</div>
   </div>
-  <div class="glass hover pipe-node">
+  <div class="glass hover pipe-node anim-in d3">
     <div class="ico">🔮</div>
     <div class="name">Predict</div>
     <div class="det">RandomForest · LSTM</div>
     <div class="tag"><i></i>RISK SCORE</div>
   </div>
-  <div class="glass hover pipe-node">
+  <div class="glass hover pipe-node anim-in d4">
     <div class="ico">🧭</div>
     <div class="name">Enrich</div>
     <div class="det">MITRE · CAPEC · CVE</div>
     <div class="tag"><i></i>KILL CHAIN</div>
   </div>
-  <div class="glass hover pipe-node">
+  <div class="glass hover pipe-node anim-in d5">
     <div class="ico">🛡</div>
     <div class="name">Act</div>
     <div class="det">Playbooks · ledger</div>
@@ -358,65 +371,96 @@ st.caption("Data flows left → right through five live stages; a pulse animates
 st.markdown(
     "<div class='csec'><h3>What NetSight does</h3>"
     "<div class='csec-line'></div></div>", unsafe_allow_html=True)
-fc1, fc2, fc3 = st.columns(3)
-with fc1:
-    st.markdown("""
-    <div class="glass hover">
-      <div class="glass-inner" style="padding:22px 22px">
-        <h3 style="margin:0 0 10px">🔮 Forecast</h3>
-        <div style="color:var(--muted);line-height:1.6">Predicts per-window
-        <b style="color:var(--text)">risk</b> and which
-        <b style="color:var(--text)">known attack family</b> is unfolding, along
-        with its position on the MITRE kill chain — up to
-        <b style="color:var(--text)">6 windows of lead time</b>.</div>
-      </div>
-    </div>""", unsafe_allow_html=True)
-with fc2:
-    st.markdown("""
-    <div class="glass hover">
-      <div class="glass-inner" style="padding:22px 22px">
-        <h3 style="margin:0 0 10px">🔬 Explain</h3>
-        <div style="color:var(--muted);line-height:1.6">Every prediction carries
-        the model's <i>own</i> attribution — mean-imputation ablation for the
-        forest, gradient saliency for the LSTM — so an analyst sees exactly which
-        traffic features drove the alarm.</div>
-      </div>
-    </div>""", unsafe_allow_html=True)
-with fc3:
-    st.markdown("""
-    <div class="glass hover">
-      <div class="glass-inner" style="padding:22px 22px">
-        <h3 style="margin:0 0 10px">🛡 Respond + audit</h3>
-        <div style="color:var(--muted);line-height:1.6">Generate MITRE-grounded
-        firewall playbooks, simulate a honeypot redirection, and log incidents to
-        a tamper-proof SHA-256 ledger with a SOC PDF report.</div>
-      </div>
-    </div>""", unsafe_allow_html=True)
+st.markdown("""
+<div class="feat-grid">
+  <div class="conn"></div>
+  <div class="glass hover glow-blue anim-in d1">
+    <div class="glass-inner" style="padding:26px 24px">
+      <div class="ficon">🔮</div>
+      <h3 style="margin:0 0 10px">Forecast</h3>
+      <div style="color:var(--muted);line-height:1.6;font-size:.94rem">Predicts
+      per-window <b style="color:var(--text)">risk</b> and which
+      <b style="color:var(--text)">known attack family</b> is unfolding, along
+      with its position on the MITRE kill chain — up to
+      <b style="color:var(--text)">6 windows of lead time</b>.</div>
+    </div>
+  </div>
+  <div class="glass hover glow-green anim-in d2">
+    <div class="glass-inner" style="padding:26px 24px">
+      <div class="ficon green">🔬</div>
+      <h3 style="margin:0 0 10px">Explain</h3>
+      <div style="color:var(--muted);line-height:1.6;font-size:.94rem">Every
+      prediction carries the model's <i>own</i> attribution —
+      mean-imputation ablation for the forest, gradient saliency for the LSTM —
+      so an analyst sees exactly which traffic features drove the alarm.</div>
+    </div>
+  </div>
+  <div class="glass hover glow-violet anim-in d3">
+    <div class="glass-inner" style="padding:26px 24px">
+      <div class="ficon violet">🛡</div>
+      <h3 style="margin:0 0 10px">Respond + audit</h3>
+      <div style="color:var(--muted);line-height:1.6;font-size:.94rem">Generate
+      MITRE-grounded firewall playbooks, simulate a honeypot redirection, and log
+      incidents to a tamper-proof SHA-256 ledger with a SOC PDF report.</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 # --- get started ------------------------------------------------------------
 st.markdown(
     "<div class='csec'><h3>Get started</h3>"
     "<div class='csec-line'></div></div>", unsafe_allow_html=True)
-g1, g2, g3 = st.columns(3)
-with g1:
-    st.markdown("<div class='glass hover'><div class='glass-inner'"
-                " style='padding:18px 20px'><span class='badge info'>STEP 1</span>"
-                "<p style='margin:.5rem 0 0;color:var(--muted)'>Open the "
-                "<b style='color:var(--text)'>🛡 SOC Dashboard</b> from the left "
-                "navigation.</p></div></div>", unsafe_allow_html=True)
-with g2:
-    st.markdown("<div class='glass hover'><div class='glass-inner'"
-                " style='padding:18px 20px'><span class='badge info'>STEP 2</span>"
-                "<p style='margin:.5rem 0 0;color:var(--muted)'>Pick an ingestion "
-                "source — upload a CSV/PCAP or hit <b style='color:var(--text)'>"
-                "Run Demo</b> for Friday DDoS (recommended).</p></div></div>",
-                unsafe_allow_html=True)
-with g3:
-    st.markdown("<div class='glass hover'><div class='glass-inner'"
-                " style='padding:18px 20px'><span class='badge info'>STEP 3</span>"
-                "<p style='margin:.5rem 0 0;color:var(--muted)'>Choose a model "
-                "<b style='color:var(--text)'>RandomForest / LSTM</b> and explore "
-                "the five tabs.</p></div></div>", unsafe_allow_html=True)
+st.markdown("""
+<div class="journey">
+  <div class="jarrow"></div>
+  <div class="glass hover jcard anim-in d1">
+    <div class="jnum">1</div>
+    <h3 style="margin:0 0 8px;font-size:.98rem">Open the SOC Dashboard</h3>
+    <div style="color:var(--muted);font-size:.88rem;line-height:1.55">Head to the
+    <b style="color:var(--text)">🛡 SOC Dashboard</b> from the left navigation.</div>
+  </div>
+  <div class="glass hover jcard anim-in d2">
+    <div class="jnum">2</div>
+    <h3 style="margin:0 0 8px;font-size:.98rem">Pick a data source</h3>
+    <div style="color:var(--muted);font-size:.88rem;line-height:1.55">Upload a
+    CSV/PCAP, or hit <b style="color:var(--text)">Run Demo</b> for Friday DDoS
+    (recommended showcase).</div>
+  </div>
+  <div class="glass hover jcard anim-in d3">
+    <div class="jnum">3</div>
+    <h3 style="margin:0 0 8px;font-size:.98rem">Explore the five tabs</h3>
+    <div style="color:var(--muted);font-size:.88rem;line-height:1.55">Choose
+    <b style="color:var(--text)">RandomForest / LSTM</b> and dig into forecast,
+    explain, defend.</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# --- live console -----------------------------------------------------------
+st.markdown(
+    "<div class='csec'><h3>Live system console</h3>"
+    "<div class='csec-line'></div></div>", unsafe_allow_html=True)
+st.markdown("""
+<div class="terminal anim-in d2">
+  <div class="term-bar">
+    <span class="tb r"></span><span class="tb y"></span><span class="tb g"></span>
+    <span class="term-title">netsight · sih:26153</span>
+    <span style="margin-left:auto;color:#52627e">wed 02 sep 2026</span>
+  </div>
+  <div class="term-body">
+    <div class="tline"><span class="t">[00:00.001]</span><span class="tok">init</span> engine=random_forest dim=76 source=cicids2017 mode=offline</div>
+    <div class="tline"><span class="t">[00:00.120]</span><span class="tokw">warn</span> portscan cross-day blind spot published (0/351)</div>
+    <div class="tline"><span class="t">[00:00.310]</span><span class="tokb">forecast</span> friday windows=452 risk_peak=<b>1.000</b> lead_med=<b>8</b></div>
+    <div class="tline"><span class="t">[00:00.480]</span><span class="tokr">alert</span> window #36 · risk 0.539 · family=ddos · mitre=t1498</div>
+    <div class="tline"><span class="t">[00:00.620]</span><span class="tokb">mitre</span> stage=impact technique=T1498 cvss=7.5 cve=CVE-2018-0101</div>
+    <div class="tline"><span class="t">[00:00.730]</span><span class="tok">xai</span> drivers packet_rate(+..) fwd_ratio(-..) flow_duration(+..)</div>
+    <div class="tline"><span class="t">[00:00.810]</span><span class="toki">novelty</span> callout advisory only · analyst reviews · never auto-block</div>
+    <div class="tline"><span class="t">[00:01.002]</span><span class="tok">audit</span> ledger sha-256 sealed · report soc_incident_report.pdf ready
+    &nbsp;<span class="cursor"></span></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 # --- for judges -------------------------------------------------------------
 with st.expander("🧑‍⚖️ For judges — what to remember"):
