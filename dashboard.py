@@ -26,6 +26,7 @@ from infer import (
     RandomForestEngine,
     LSTMEngine,
     run_inference,
+    correlate_incidents,
 )
 from active_defense import ActiveDefenseEngine
 from forensics_report import ForensicLedger, generate_pdf_report
@@ -359,7 +360,29 @@ if has_truth:
                 unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-# ============================ TABS =========================================
+# ================= INCIDENT INTELLIGENCE (correlation) ====================
+try:
+    incidents = correlate_incidents(tl.to_dict("records"))
+    if incidents and len(flagged):
+        st.markdown(
+            '<div style="font-size:.78rem;letter-spacing:.06em;color:var(--dim);'
+            'margin:14px 0 4px;text-transform:uppercase">Incident intelligence · '
+            'correlated alerts</div>', unsafe_allow_html=True)
+        ic = "".join(
+            f"<div class='incident-row'>"
+            f"<span class='iid'>#{i['incident_id']}</span>"
+            f"<span class='iwin'>w{i['first_window']}–w{i['last_window']} "
+            f"(<b>{i['windows']}</b>)</span>"
+            f"<span class='ifam'>{html.escape(str(i['family']))}</span>"
+            f"<span class='istage'>{html.escape(str(i['stage']))}</span>"
+            f"<span class='ipeak'>{i['peak_risk']:.3f}</span>"
+            f"</div>" for i in incidents)
+        st.markdown(f"<div class='incident-window glass'>{ic}</div>",
+                    unsafe_allow_html=True)
+        st.caption("Alert windows grouped into incidents (gap ≤ 2 wins and same "
+                   "family). Shows attack onset, duration, peak risk and MITRE stage.")
+except Exception:
+    pass
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🔭 Forecaster", "🔬 Explainability", "🧪 What-If Lab",
     "🛡 Active Defense", "📜 Forensic Audit"])

@@ -340,6 +340,22 @@ pre, code, [class*="codeCell"] { font-family:var(--mono); }
 .feed-row .truth { font-family:var(--mono); text-align:right; text-transform:uppercase;
     font-size:.68rem; letter-spacing:.05em; }
 
+/* incidents block */
+.incident-window { max-width:680px; overflow:hidden; }
+.incident-row { display:grid; grid-template-columns: 46px 1fr 1fr 1.4fr 64px; gap:14px;
+    align-items:center; padding:9px 14px; }
+.incident-row:not(:last-child) { border-bottom:1px dashed rgba(148,163,184,.12); }
+.incident-row .iid { width:26px; height:26px; border-radius:50%; display:flex; align-items:center;
+    justify-content:center; font-family:var(--mono); font-weight:800; font-size:.72rem;
+    color:#e2e8f0; background:linear-gradient(135deg,#3b82f6,#6366f1);
+    box-shadow:0 0 12px rgba(59,130,246,.45); }
+.incident-row .iwin { font-family:var(--mono); color:#cbd5e1; font-size:.82rem; white-space:nowrap; }
+.incident-row .iwin b { color:#f87171; }
+.incident-row .ifam { font-family:var(--mono); text-transform:uppercase; font-size:.7rem;
+    letter-spacing:.06em; color:#22d3ee; }
+.incident-row .istage { font-size:.72rem; color:#94a3b8; }
+.incident-row .ipeak { font-family:var(--mono); font-weight:800; color:#fbbf24; text-align:right; }
+
 /* neutral severity badge */
 .badge.none { background:rgba(148,163,184,.14); color:#94a3b8; border:1px solid rgba(148,163,184,.4); }
 

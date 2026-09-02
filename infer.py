@@ -497,6 +497,47 @@ def summarize(timeline):
     }
 
 
+def correlate_incidents(timeline, gap=2):
+    """Group consecutive alert windows into distinct security incidents.
+
+    A new incident starts when there are `gap` or more consecutive non-alert
+    windows since the last alert (or the family changes). Each incident reports
+    its first/last window, peak risk, dominant family, and MITRE stage — turning
+    a stream of discrete alerts into a story analysts can act on.
+    """
+    flagged = sorted(
+        [t for t in timeline if t.get("predicted_alert")],
+        key=lambda t: t["window_id"])
+    incidents = []
+    cur = None
+    prev_alert = None
+    for t in flagged:
+        wid = int(t["window_id"])
+        if (cur is not None and
+                (wid - prev_alert) < gap and
+                t.get("attack_family") == cur["family"]):
+            cur["last_window"] = wid
+            cur["peak_risk"] = max(cur["peak_risk"], float(t["risk_score"]))
+            cur["windows"] += 1
+            prev_alert = wid
+            continue
+        if cur is not None:
+            incidents.append(cur)
+        cur = {
+            "incident_id": len(incidents) + 1,
+            "first_window": wid,
+            "last_window": wid,
+            "peak_risk": float(t["risk_score"]),
+            "family": t.get("attack_family", "none"),
+            "stage": t.get("mitre_stage", "-"),
+            "windows": 1,
+        }
+        prev_alert = wid
+    if cur:
+        incidents.append(cur)
+    return incidents
+
+
 def main():
     parser = argparse.ArgumentParser(description="Streaming attack-forecast inference")
     parser.add_argument("input", help="CICIDS2017 flow CSV or pre-featurized window CSV")
