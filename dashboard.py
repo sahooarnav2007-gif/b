@@ -11,6 +11,7 @@ NetSight SOC dashboard — the five analysis tabs on the real pipeline.
 """
 
 import html
+import json
 import os
 import tempfile
 import time
@@ -110,6 +111,19 @@ def timeline_chart(tl, flagged, threshold):
 
 ledger = load_ledger()
 defense = ActiveDefenseEngine()
+
+def _load_json(name, default=None):
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), name)) as fh:
+            return json.load(fh)
+    except Exception:
+        return default
+
+full = _load_json("full_model_summary.json", {})
+evalf = _load_json("eval_forecasting.json", {})
+world = _load_json("world_model_dynamics.json", {})
+wf = _load_json("walk_forward_cv.json", {})
+lt = evalf.get("lead_time_windows") or {}
 
 # ============================ SIDEBAR ======================================
 with st.sidebar:
@@ -357,6 +371,49 @@ with tab1:
                 unsafe_allow_html=True)
     st.altair_chart(timeline_chart(tl, flagged, threshold), width="stretch")
 
+    # ---- ATTACK PROGRESSION SCRUBBER ----
+    if len(tl):
+        wmin, wmax = int(tl["window_id"].min()), int(tl["window_id"].max())
+        scrub_w = st.slider("Scrub timeline", wmin, wmax, wmin,
+                            key="scrub_timeline",
+                            help="Pick a window to inspect its risk, family, and MITRE stage.")
+        srow = tl[tl["window_id"].astype(int) == scrub_w]
+        if len(srow):
+            sr = srow.iloc[0]
+            sr_cls, sr_lab = risk_badge(sr["risk_score"])
+            gt_hit = str(sr.get("gt_family", "none")).strip().lower() != "none"
+            gt_color = "#4ade80" if gt_hit else "#94a3b8"
+            gt_label = "attack" if gt_hit else "benign"
+            atc = int(sr.get("predicted_alert", False))
+            atc_color = "#f87171" if atc else "#94a3b8"
+            atc_label = "ALERT" if atc else "clear"
+            st.markdown(
+                f"<div class='glass' style='padding:18px 22px; margin:8px 0 12px; "
+                f"border-left:3px solid {sr_cls.replace('badge ','').split()[0] if sr_cls else '#3b82f6'}'>"
+                f"<div style='display:grid; grid-template-columns:auto 1fr 1fr 1fr 1fr auto; "
+                f"gap:20px; align-items:center'>"
+                f"<div><span style='font-family:var(--mono); font-weight:800; font-size:1.35rem; "
+                f"color:#e2e8f0'>W{scrub_w}</span></div>"
+                f"<div><span style='font-size:.64rem; text-transform:uppercase; color:#64748b; "
+                f"letter-spacing:.08em'>Risk</span><br>"
+                f"<span style='font-family:var(--mono); font-weight:700; font-size:1.1rem; "
+                f"color:{sr_cls.replace('badge ','').split()[0] if sr_cls else '#3b82f6'}'>"
+                f"{sr['risk_score']:.3f}</span></div>"
+                f"<div><span style='font-size:.64rem; text-transform:uppercase; color:#64748b; "
+                f"letter-spacing:.08em'>Family</span><br>"
+                f"<span style='font-family:var(--mono); font-weight:600; font-size:.95rem; "
+                f"color:#e2e8f0'>{html.escape(str(sr['attack_family']))}</span></div>"
+                f"<div><span style='font-size:.64rem; text-transform:uppercase; color:#64748b; "
+                f"letter-spacing:.08em'>MITRE</span><br>"
+                f"<span style='font-family:var(--mono); font-weight:600; font-size:.95rem; "
+                f"color:#93c5fd'>{html.escape(str(sr['mitre_stage']))}</span></div>"
+                f"<div><span style='font-size:.64rem; text-transform:uppercase; color:#64748b; "
+                f"letter-spacing:.08em'>GT / Model</span><br>"
+                f"<span style='font-family:var(--mono); font-size:.82rem'>"
+                f"<span style='color:{gt_color}'>{gt_label}</span> → "
+                f"<span style='color:{atc_color}'>{atc_label}</span></span></div>"
+                f"</div></div>", unsafe_allow_html=True)
+
     # ---- threat-matrix heatmap: attack family x risk across windows ----
     if "attack_family" in tl.columns and len(tl):
         fam = tl["attack_family"].fillna("none").astype(str)
@@ -507,6 +564,92 @@ with tab1:
 # TAB 2 — EXPLAINABILITY
 # ==========================================================================
 with tab2:
+    # ---- MODEL COMPARISON (RF vs LSTM) ----
+    rf_data = {
+        "Cross-day AUC": (full.get("roc_auc"), "g"),
+        "Precision": (full.get("precision"), "g"),
+        "Recall": (full.get("recall"), "r"),
+        "F1": (full.get("f1"), "o"),
+        "Lead (median)": (lt.get("median"), "b"),
+    }
+    lstm_data = {
+        "Next-state AUC": (world.get("lstm_next_attack_window_auc"), "v"),
+        "Walk-forward AUC": (wf.get("pooled_auc"), "o"),
+        "Forecast AUPRC": (evalf.get("auprc_forecast"), "b"),
+    }
+    try:
+        comp_cols = st.columns([1, 1], gap="large")
+        with comp_cols[0]:
+            st.markdown('<div class="sec-title"><h3>Model comparison</h3></div>',
+                        unsafe_allow_html=True)
+            comp_html = "<div style='display:grid; grid-template-columns:1fr 1fr; gap:10px'>"
+            for label, (val, cls) in rf_data.items():
+                v = f"{val:.3f}" if val is not None else "—"
+                comp_html += (
+                    f"<div class='metric-card' style='padding:10px 12px'>"
+                    f"<div style='font-size:.6rem; text-transform:uppercase; color:var(--dim); "
+                    f"letter-spacing:.08em'>{label}</div>"
+                    f"<div style='font-family:var(--mono); font-weight:800; font-size:1.05rem; "
+                    f"color:var(--{cls})'>{v}</div></div>")
+            comp_html += "</div>"
+            st.markdown(comp_html, unsafe_allow_html=True)
+            st.caption("RandomForest · 76-dim rolling · trained Mon–Thu, tested Fri")
+        with comp_cols[1]:
+            st.markdown('<div class="sec-title"><h3>LSTM world model</h3></div>',
+                        unsafe_allow_html=True)
+            lstm_html = "<div style='display:grid; grid-template-columns:1fr 1fr; gap:10px'>"
+            for label, (val, cls) in lstm_data.items():
+                v = f"{val:.3f}" if val is not None else "—"
+                lstm_html += (
+                    f"<div class='metric-card' style='padding:10px 12px'>"
+                    f"<div style='font-size:.6rem; text-transform:uppercase; color:var(--dim); "
+                    f"letter-spacing:.08em'>{label}</div>"
+                    f"<div style='font-family:var(--mono); font-weight:800; font-size:1.05rem; "
+                    f"color:var(--{cls})'>{v}</div></div>")
+            lstm_html += "</div>"
+            st.markdown(lstm_html, unsafe_allow_html=True)
+            st.caption("LSTM · learns state-transition P(S_t+1 | S_t) · never auto-blocks")
+    except Exception:
+        pass
+
+    st.markdown("---")
+
+    # ---- FAMILY-LEVEL BREAKDOWN ----
+    pf = evalf.get("per_family", {})
+    if pf:
+        try:
+            st.markdown('<div class="sec-title"><h3>Per-family detection rate</h3></div>',
+                        unsafe_allow_html=True)
+            rows = []
+            for fam, d in pf.items():
+                rows.append({
+                    "family": fam,
+                    "total": d.get("windows", 0),
+                    "warned": d.get("warned_within_horizon", 0),
+                    "lead": d.get("median_lead_windows", 0),
+                    "rate": (d.get("warned_within_horizon", 0) / d.get("windows", 1)
+                             if d.get("windows") else 0),
+                })
+            fam_df = pd.DataFrame(rows)
+            fam_chart = alt.Chart(fam_df).mark_bar(cornerRadiusEnd=4).encode(
+                x=alt.X("family:N", title=None),
+                y=alt.Y("rate:Q", title="detection rate", scale=alt.Scale(domain=[0, 1])),
+                color=alt.Color("family:N", legend=None,
+                                scale=alt.Scale(domain=fam_df["family"].tolist(),
+                                                range=["#f87171", "#60a5fa", "#4ade80"])),
+                tooltip=["family:N",
+                         alt.Tooltip("warned:Q", title="warned"),
+                         alt.Tooltip("total:Q", title="total"),
+                         alt.Tooltip("lead:Q", title="lead (median w)")],
+            ).properties(height=220)
+            st.altair_chart(fam_chart, width="stretch")
+            st.caption("DDoS warned 269/278 · Botnet 16/92 · PortScan 0/351 (cross-day blind spot)")
+        except Exception:
+            pass
+
+    st.markdown("---")
+
+    # ---- PER-WINDOW ATTRIBUTION ----
     st.markdown('<div class="sec-title"><h3>Real per-window feature attribution</h3></div>',
                 unsafe_allow_html=True)
     st.markdown("For the **RandomForest**, risk is re-run with each top feature "

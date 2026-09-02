@@ -620,6 +620,39 @@ html { scroll-behavior: smooth; }
     background:linear-gradient(90deg, transparent, rgba(59,130,246,.4), transparent); }
 
 /* ============================================================
+   JUDGES PANEL
+   ============================================================ */
+.jpanel { padding:0; }
+.jpanel .jp-head { text-align:center; margin-bottom:28px; }
+.jpanel .jp-head h2 { font-size:1.15rem; letter-spacing:.12em; color:#e2e8f0;
+    text-transform:uppercase; margin:0 0 4px; }
+.jpanel .jp-head p { color:#64748b; font-size:.78rem; letter-spacing:.06em; margin:0; }
+.jpanel .jp-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:24px; }
+.jpanel .jp-card { background:linear-gradient(150deg, rgba(15,23,42,.85), rgba(10,16,32,.95));
+    border:1px solid rgba(59,130,246,.18); border-radius:14px; padding:20px 18px;
+    backdrop-filter:blur(12px); position:relative; overflow:hidden; }
+.jpanel .jp-card::after { content:""; position:absolute; top:0; left:0; right:0; height:2px;
+    background:linear-gradient(90deg, transparent, var(--jc, #3b82f6), transparent); }
+.jpanel .jp-card .jp-val { font-family:var(--mono); font-weight:800; font-size:1.9rem;
+    color:var(--jc, #3b82f6); text-shadow:0 0 18px color-mix(in srgb, var(--jc, #3b82f6) 40%, transparent);
+    margin-bottom:4px; }
+.jpanel .jp-card .jp-label { font-size:.64rem; text-transform:uppercase; letter-spacing:.1em;
+    color:#94a3b8; }
+.jpanel .jp-card .jp-sub { font-size:.68rem; color:#475569; margin-top:6px; line-height:1.45; }
+.jpanel .jp-rows { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:24px; }
+.jpanel .jp-row { display:flex; align-items:flex-start; gap:12px; padding:14px 16px;
+    background:rgba(15,23,42,.6); border:1px solid rgba(59,130,246,.12); border-radius:12px; }
+.jpanel .jp-row .jpr-icon { flex:none; width:34px; height:34px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center; font-size:1.05rem;
+    background:rgba(59,130,246,.12); }
+.jpanel .jp-row .jpr-text b { display:block; font-size:.82rem; color:#e2e8f0; margin-bottom:3px; }
+.jpanel .jp-row .jpr-text span { font-size:.74rem; color:#64748b; line-height:1.5; }
+.jpanel .jp-honest { padding:16px 18px; border:1px solid rgba(251,191,36,.25); border-radius:12px;
+    background:rgba(251,191,36,.04); }
+.jpanel .jp-honest b { color:#fbbf24; font-size:.78rem; }
+.jpanel .jp-honest span { color:#94a3b8; font-size:.74rem; line-height:1.55; display:block; margin-top:4px; }
+
+/* ============================================================
    CURSOR-REACTIVE + MOTION LAYER (Layer 1,4,5,6)
    ============================================================ */
 /* Layer 1 — ambient breathing light (pure CSS; no JS needed) */
