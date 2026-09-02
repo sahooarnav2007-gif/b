@@ -391,6 +391,70 @@ try:
             help="Download the correlated incident summary as structured JSON "
                  "for import into a SIEM or case-management tool.")
 
+        # ---- severity distribution across incidents ----
+        if len(incidents) > 1:
+            sev_df = pd.DataFrame([{
+                "incident": f"#{i['incident_id']}",
+                "severity": i["severity"],
+                "priority": i.get("priority", "MEDIUM"),
+            } for i in incidents])
+            sev_chart = alt.Chart(sev_df).mark_bar(cornerRadiusEnd=3).encode(
+                x=alt.X("incident:N", title=None),
+                y=alt.Y("severity:Q", title="severity (0–1)",
+                        scale=alt.Scale(domain=[0, 1])),
+                color=alt.Color("priority:N",
+                                scale=alt.Scale(domain=["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+                                                range=["#4ade80", "#fbbf24", "#fb923c", "#ef4444"])),
+                tooltip=["incident:N", "priority:N",
+                         alt.Tooltip("severity:Q", format=".3f")],
+            ).properties(height=180)
+            st.markdown(
+                '<div style="font-size:.72rem;letter-spacing:.08em;color:var(--dim);'
+                'text-transform:uppercase;margin:6px 0 2px">Severity across incidents'
+                '</div>', unsafe_allow_html=True)
+            st.altair_chart(sev_chart, width="stretch")
+
+        # ---- incident narrative report (markdown) ----
+        try:
+            md = ["# NetSight — Correlated Incident Report",
+                  f"**Model:** {model_name} · **Threshold:** {threshold:.2f} · "
+                  f"**Source:** {src_label}",
+                  f"**Total incidents:** {len(incidents)} · **Alert windows:** "
+                  f"{len(flagged)}",
+                  "", "| # | Priority | Window span | Duration (w) | ~Flows | "
+                  "Peak risk | Family | MITRE stage | Sev |",
+                  "|---|---------|-------------|--------------|--------|--------|-------|-------------|-----|"]
+            for i in incidents:
+                md.append(
+                    f"| {i['incident_id']} | {i.get('priority','?')} | "
+                    f"w{i['first_window']}–w{i['last_window']} | {i['duration_windows']} | "
+                    f"{i['estimated_flows']:,} | {i['peak_risk']:.3f} | {i['family']} | "
+                    f"{i['stage']} | {i['severity']:.3f} |")
+            md += ["", "## Narrative", ""]
+            for i in incidents:
+                md.append(
+                    f"### Incident #{i['incident_id']} — {i.get('priority','UNKNOWN')} "
+                    f"({i['family']})")
+                md.append(
+                    f"- Detected from **window {i['first_window']}** to "
+                    f"**window {i['last_window']}** ({i['duration_windows']} windows, "
+                    f"~{i['estimated_flows']:,} flows).")
+                md.append(f"- Peak risk **{i['peak_risk']:.3f}**; composite severity "
+                          f"**{i['severity']:.3f}**.")
+                md.append(f"- Mapped to MITRE stage **{i['stage']}**.")
+                md.append("")
+            report_md = "\n".join(md)
+            st.download_button(
+                "📄 Export incident narrative report (Markdown)",
+                data=report_md,
+                file_name="netsight_incident_report.md",
+                mime="text/markdown",
+                help="Human-readable markdown summary of all correlated "
+                     "incidents, ready to paste into a ticketing or case tool.",
+                key="dl_narrative")
+        except Exception:
+            pass
+
         # ---- incident detail expander ----
         with st.expander(f"🔎 Incident drill-down ({len(incidents)} incidents)"):
             for inc in incidents:
@@ -450,6 +514,75 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1 — FORECASTER
 # ==========================================================================
 with tab1:
+    # ---- RF vs LSTM side-by-side comparison ----
+    with st.expander("⚖️ Compare engines (RandomForest vs LSTM) on this input"):
+        st.markdown("Runs **both** engines on the first few windows of the "
+                    "current input and compares how they agree. Sampling keeps "
+                    "it fast — use it to see where a statistical forecaster "
+                    "and a sequence world-model diverge.")
+        cmp_n = st.slider("Windows to compare", 50, 400, 200, step=50,
+                          key="cmp_n", help="Larger = slower; smaller = faster")
+        cmp_note = ""
+        if st.button("⚔️ Run engine comparison", type="secondary",
+                     key="run_cmp"):
+            try:
+                from infer import RandomForestEngine, LSTMEngine, run_inference as _ri
+                with st.spinner("Running both engines…"):
+                    cmp_rf, srf = _ri(input_path, RandomForestEngine(threshold=threshold),
+                                      max_windows=int(cmp_n))
+                    cmp_ls, sls = _ri(input_path, LSTMEngine(threshold=threshold),
+                                      max_windows=int(cmp_n))
+                df_rf = pd.DataFrame(cmp_rf)
+                df_ls = pd.DataFrame(cmp_ls)
+                n = min(len(df_rf), len(df_ls))
+                df_rf = df_rf.head(n).reset_index(drop=True)
+                df_ls = df_ls.head(n).reset_index(drop=True)
+                agree_alerts = int(((df_rf["predicted_alert"].astype(bool)) ==
+                                    (df_ls["predicted_alert"].astype(bool))).sum())
+                both_alerts = int((df_rf["predicted_alert"].astype(bool) &
+                                   df_ls["predicted_alert"].astype(bool)).sum())
+                only_rf = int((df_rf["predicted_alert"].astype(bool) &
+                               ~df_ls["predicted_alert"].astype(bool)).sum())
+                only_ls = int((~df_rf["predicted_alert"].astype(bool) &
+                               df_ls["predicted_alert"].astype(bool)).sum())
+                st.markdown(
+                    f"<div class='metric-grid glass'>"
+                    f"<div class='mq'><span class='mile'>Agreement</span>"
+                    f"<span class='miv g'>{agree_alerts/n:.1%}</span></div>"
+                    f"<div class='mq'><span class='mile'>Both alert</span>"
+                    f"<span class='miv c'>{both_alerts}</span></div>"
+                    f"<div class='mq'><span class='mile'>RF only</span>"
+                    f"<span class='miv o'>{only_rf}</span></div>"
+                    f"<div class='mq'><span class='mile'>LSTM only</span>"
+                    f"<span class='miv v'>{only_ls}</span></div>"
+                    f"<div class='mq'><span class='mile'>Peak RF</span>"
+                    f"<span class='miv b'>{df_rf['risk_score'].max():.3f}</span></div>"
+                    f"<div class='mq'><span class='mile'>Peak LSTM</span>"
+                    f"<span class='miv b'>{df_ls['risk_score'].max():.3f}</span></div>"
+                    f"</div>", unsafe_allow_html=True)
+                dou = pd.DataFrame({
+                    "window_id": df_rf["window_id"].astype(int),
+                    "RF": df_rf["risk_score"],
+                    "LSTM": df_ls["risk_score"],
+                }).melt("window_id", var_name="engine", value_name="risk")
+                cmp_chart = alt.Chart(dou).mark_line().encode(
+                    x=alt.X("window_id:Q", title="window"),
+                    y=alt.Y("risk:Q", title="risk",
+                            scale=alt.Scale(domain=[0, 1])),
+                    color=alt.Color("engine:N", scale=alt.Scale(
+                        domain=["RF", "LSTM"], range=["#3b82f6", "#a78bfa"])),
+                    tooltip=["window_id:O", "engine:N",
+                             alt.Tooltip("risk:Q", format=".3f")],
+                ).properties(height=260).interactive()
+                st.altair_chart(cmp_chart, width="stretch")
+                st.caption("Blue = RandomForest · Violet = LSTM. Where the lines "
+                           "diverge, the two models disagree on risk — inspect "
+                           "attribution in 🔬 Explainability.")
+            except Exception as e:
+                st.error(f"Comparison failed on this input: {type(e).__name__}")
+        else:
+            st.caption("Press **Run engine comparison** to populate the comparison.")
+
     if is_pcap and pcap_extras is not None and not pcap_extras.empty:
         st.subheader("Packet-level features (per 500-packet window)")
         cols = ["window_id", "packet_rate", "byte_rate", "syn_only_rate",
