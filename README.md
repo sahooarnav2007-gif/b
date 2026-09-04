@@ -263,10 +263,11 @@ incident PDF report (falls back to `.txt` when absent).
 1. Push `main` via GitHub Desktop
 2. share.streamlit.io → New app → repo `sahooarnav2007-gif/b` → branch `main`
    → file `app.py` → Deploy
-3. Verify: Home page + SOC Dashboard (5 tabs — 🔭 Forecaster + 🔬
-   Explainability + 🧪 What-If Lab + 🛡 Active Defense + 📜 Forensic Audit) —
-   across CSV upload, PCAP upload, RF/LSTM toggle, and the demo artifact
-   (Friday DDoS recommended)
+3. Verify: Home page (animated threat-arc globe — works offline & without
+   WebGL via a 2D canvas fallback) + SOC Dashboard (6 tabs — 🔭 Forecaster +
+   🔬 Explainability + 🧪 What-If Lab + 🛡 Active Defense + 📜 Forensic Audit
+   + 📦 Reports & Export Hub) — across CSV upload, PCAP upload, RF/LSTM
+   toggle, and the demo artifact (Friday DDoS recommended)
 4. Free tier sleeps after inactivity (~30–60 s cold start). Upload cap 200 MB.
 
 ---
@@ -308,8 +309,9 @@ incident PDF report (falls back to `.txt` when absent).
 | `active_defense.py` | SOAR tab: MITRE ATT&CK intel, generated firewall rules (iptables/netsh/Cisco ACL), honeypot DNAT simulation |
 | `forensics_report.py` | SHA-256 Merkle-chain ledger (tamper-detecting) + SOC incident PDF report (fpdf2) |
 | `app.py` | Multi-page entry point (`st.navigation`) → Home + SOC Dashboard |
-| `home.py` | Home page: animated threat-arc globe, live eval stats, pipeline diagram, "for judges" metrics panel |
-| `dashboard.py` | SOC Dashboard: empty-state CTA + Run Demo, overview strip + risk sparkline, detection quality, incident intelligence, threat-matrix heatmap, timeline scrubber, 5 tabs (Forecaster / Explainability + model comparison / What-If / Active Defense / Forensic Audit) |
+| `home.py` | Home page: animated threat-arc globe (three.js inlined at runtime for offline/no-CDN use, with a Canvas-2D fallback when WebGL is unavailable), live eval stats, pipeline diagram, "for judges" metrics panel |
+| `static/three/` | Vendored three.js (r128) + OrbitControls — inlined into the globe at runtime so it renders fully offline & inside Streamlit's sandboxed iframe |
+| `dashboard.py` | SOC Dashboard: empty-state CTA + Run Demo, overview strip + risk sparkline, detection quality, incident intelligence (severity chart, drill-down + SOC PDF per incident), threat-matrix heatmap, attack narrative timeline, RF-vs-LSTM engine comparison, timeline scrubber, 6 tabs (Forecaster / Explainability + model comparison / What-If / Active Defense + SOAR blast-radius & auto-approve sim / Forensic Audit / Reports & Export Hub) |
 | `dataset/demo_friday_ddos_windows.csv` | Committed pre-featurized demo (Friday DDoS, 452 windows) — Run Demo works on a fresh clone |
 | `zero_day_callout.py` | Novelty callout (k-NN, advisory) |
 | `knowledge_base.py` | CAPEC/CVE enrichment per attack family |
