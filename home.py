@@ -464,9 +464,10 @@ with st.sidebar:
         unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("**🚀 Quick launch**")
-    st.button("Open SOC Dashboard",
-              type="primary", use_container_width=True,
-              on_click=lambda: st.switch_page("dashboard.py"))
+    if st.button("Open SOC Dashboard",
+               type="primary", use_container_width=True,
+               key="open_dash"):
+        st.switch_page("dashboard.py")
     st.markdown("---")
     st.markdown("**⚙️ Mode**")
     st.radio("Engine", ["RandomForest", "LSTM"],
@@ -516,8 +517,26 @@ with hc1:
     st.markdown(stat_html, unsafe_allow_html=True)
 
 with hc2:
-    st.iframe(GLOBE_HTML, width="stretch", height=520)
-    st.caption("Simulated global threat arcs · Earth texture: NASA night-lights")
+    # Lazy-load the globe: the 640KB inlined three.js causes lag when
+    # serialized into every Streamlit rerender.  Only render it once the
+    # user explicitly asks for it.
+    if st.session_state.get("_globe_loaded"):
+        st.iframe(GLOBE_HTML, width="stretch", height=520)
+        st.caption("Simulated global threat arcs · Earth texture: NASA night-lights")
+    else:
+        st.markdown(
+            "<div style='height:220px;display:flex;align-items:center;"
+            "justify-content:center'>"
+            "<div style='text-align:center;padding:24px;border-radius:16px;"
+            "border:1px dashed rgba(59,130,246,.35);background:rgba(10,15,30,.5)'>"
+            "<div style='font-size:2.4rem;margin-bottom:8px'>🌐</div>"
+            "<div style='font-size:.82rem;color:var(--muted);'>"
+            "Interactive 3D threat globe (three.js + WebGL)</div></div></div>",
+            unsafe_allow_html=True)
+        if st.button("🌐 Load globe", type="secondary",
+                     use_container_width=True, key="load_globe"):
+            st.session_state["_globe_loaded"] = True
+            st.rerun()
 
 
 if meta:
